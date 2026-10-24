@@ -1,13 +1,18 @@
 # VakitBox Pro
 
-VakitBox Pro; namaz vakitleri, günlük ibadet araçları ve Kur’an kaynaklarını tek bir Android uygulamasında birleştirir. Uygulama Kotlin ve Jetpack Compose ile geliştirilmiştir; mevcut uygulama ikonu korunmuştur.
+VakitBox Pro; namaz vakitlerini, çevrimdışı Kur’an okuma ve konu aramasını, günlük ibadet araçlarını, yürüyüş takibini ve not defterini bir araya getiren Android uygulamasıdır. Kotlin ve Jetpack Compose ile geliştirilmiştir.
+
+[Son sürümü ve APK’yi indir](https://github.com/mcelikart/vakitbox-pro/releases/latest)
 
 ## Ekran görüntüleri
 
 <p align="center">
-  <img src="screenshots/10_ana_sayfa_5_3_1.png" alt="VakitBox Pro ana sayfası; vakit sayacı, adım sayar ve Sabah Namazı alarmı" width="31%" />
-  <img src="screenshots/11_kuran_5_3_1.png" alt="Kur’an sure listesi ve okuma ekranı" width="31%" />
-  <img src="screenshots/12_moduller_5_3_1.png" alt="Kur’an fihristi ve ezan alarmları dahil uygulama modülleri" width="31%" />
+  <img src="screenshots/20_home_5_4_0.png" alt="Ana sayfa: geri sayım, vakitler, adımsayar ve sabah namazı alarmı" width="46%" />
+  <img src="screenshots/21_quran_sources_5_4_0.png" alt="Çevrimdışı Kur’an meal kaynakları ve seçim ekranı" width="46%" />
+</p>
+<p align="center">
+  <img src="screenshots/22_walk_5_4_0.png" alt="Sade yürüyüş ekranı: adım, mesafe, kalori, süre ve geçmiş" width="46%" />
+  <img src="screenshots/23_notes_editor_5_4_0.png" alt="Kategori seçimi ve sesle yazma özellikli not defteri" width="46%" />
 </p>
 
 ## Özellikler
@@ -34,13 +39,30 @@ VakitBox Pro; namaz vakitleri, günlük ibadet araçları ve Kur’an kaynaklar�
 
 ### Kur’an okuma ve diğer araçlar
 
-- Sure ve ayet listesi, meal/çeviri seçenekleri, sesli tilavet ve kaydedilmiş ayetler.
+- 114 surenin ve 6.236 ayetin Arapça metni, seçilebilir mealleri ve Türkçe okunuşu uygulamayla birlikte gelir; metin okumak için API veya internet gerekmez.
+- Diyanet İşleri, Elmalılı, Türkiye Diyanet Vakfı, Yaşar Nuri Öztürk, Suat Yıldırım, Abdülbaki Gölpınarlı, Süleyman Ateş, Saheeh International ve Rowwad kaynakları arasından seçim yapılabilir.
+- Seçilen mealler ayrı sekmelerde gösterilir. Kaynak kimlikleri, mevcut dipnotlar ve ayet kayıtları korunur.
+- Sesli tilavet ve Türkçe meal seslendirme desteği.
 - Kıble pusulası, imsakiye ve hicrî takvim.
 - Zikir sayacı, günlük adım sayar, namaz öğrenme rehberi ve kaza namazı takibi.
 - Yakındaki camileri bulma, dua ve sure içerikleri, Esma-ül Hüsna ve zekât hesaplama.
 - Tema seçenekleri, ana ekran araç takımı ve farklı ekran boyutlarına uyumlu arayüz.
 
-Kur’an fihristi tamamen cihazda çalışır. Hava durumu, harita ve isteğe bağlı asistan gibi bazı çevrimiçi özellikler internet bağlantısı gerektirebilir.
+### Yürüyüş takibi
+
+- Günlük, haftalık ve aylık adım özeti; hedef, grafik ve geçmiş.
+- Profile göre tahmini mesafe, aktif kalori ve süre.
+- Tempo seçimi, profil/kalibrasyon ve yürüyüş kaydı.
+- Adım sayımını açma/kapatma ve gerekli cihaz izinlerine erişim.
+
+### Not defteri
+
+- Notların bulunduğu listede kategoriler, kategoriye göre filtreleme ve not sayıları.
+- Kategori ekleme, yeniden adlandırma ve silme; kategori silinirken notlar Kategorisiz altında korunur.
+- Not düzenlerken cihazın konuşma tanımasıyla sesle yazma; mevcut metin korunarak imleç konumuna ekleme.
+- Arama, sabitleme, yazı düzenleme ve kaydetme kontrolleri.
+
+Kur’an metinleri ve fihrist araması cihazda çalışır. Hava durumu, harita, sesli tilavet ve isteğe bağlı asistan gibi bazı özellikler internet bağlantısı gerektirebilir. Sesle not yazma, cihazdaki konuşma tanıma uygulamasını kullanır.
 
 ## Kurulum
 
@@ -77,7 +99,16 @@ Minify ve kaynak küçültmesi etkin, telefonda denemeye uygun APK için:
 
 ## Kaynaklar ve lisanslar
 
-Kur’an metni, arama modeli ve kaynak notları `app/src/main/assets/quran_search` altında bulunur. Bu dizindeki lisans ve bildirim dosyalarını dağıtım sırasında koruyun.
+Kur’an metni, Rowwad meali, arama modeli ve kaynak notları `app/src/main/assets/quran_search` altında bulunur. Diğer mealler ve Türkçe okunuş `app/src/main/assets/quran_reading` altında, kaynak kimlikleri ve dosya özetleriyle paketlenir. Kaynak metinleri yeniden yazılmaz; her dosyanın 114 sure ve 6.236 ayet sırası doğrulanır.
+
+Meal ve okunuş dosyalarının kaynağı [Tanzil çevirileri](https://tanzil.net/trans/) sayfasıdır. Tanzil bu çevirileri gayriticari kullanım için sunar; ticari kullanımda çevirmen/yayıncı izni gerekir. Arapça metnin, çevirilerin ve arama modelinin lisansları farklıdır. Her iki dizindeki `NOTICE` ve lisans dosyalarını dağıtım sırasında koruyun. Kaynaklar uygulamanın Hakkında ekranında da gösterilir.
+
+Okuyucu veri dosyalarını yeniden hazırlamak için:
+
+```sh
+python3 scripts/prepare-quran-reader.py
+python3 scripts/test_quran_reader_corpus.py
+```
 
 ## İletişim
 

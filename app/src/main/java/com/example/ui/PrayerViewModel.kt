@@ -159,7 +159,10 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
                         diyanetMeal = obj.optString("diyanetMeal"),
                         elmaliliMeal = obj.optString("elmaliliMeal"),
                         vakfiMeal = obj.optString("vakfiMeal"),
-                        savedAtTimestamp = obj.optLong("savedAtTimestamp")
+                        savedAtTimestamp = obj.optLong("savedAtTimestamp"),
+                        selectedMeal = obj.optString("selectedMeal"),
+                        mealSource = obj.optString("mealSource"),
+                        footnotes = obj.optString("footnotes")
                     )
                 )
             }
@@ -204,6 +207,9 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
                 put("elmaliliMeal", v.elmaliliMeal)
                 put("vakfiMeal", v.vakfiMeal)
                 put("savedAtTimestamp", v.savedAtTimestamp)
+                put("selectedMeal", v.selectedMeal)
+                put("mealSource", v.mealSource)
+                put("footnotes", v.footnotes)
             }
             array.put(obj)
         }

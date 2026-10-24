@@ -195,14 +195,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Location Pill (Interactive) — untouched for CLASSIC_EMERALD, glassmorphic button shape for other themes
-                    val activeTheme = LocalAppTheme.current
-                    val isGlassTheme = activeTheme != AppTheme.CLASSIC_EMERALD && activeTheme.spec.isGlass
-                    Surface(
-                        shape = if (isGlassTheme) activeTheme.buttonShape else RoundedCornerShape(18.dp),
-                        color = if (isGlassTheme) glassSurfaceColor(activeTheme) else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        border = if (isGlassTheme) activeTheme.buttonBorder else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                        shadowElevation = if (isGlassTheme) 0.dp else 2.dp,
+                    HomeCardSurface(
                         modifier = Modifier.clickable { onNavigateToSearch() }
                     ) {
                         Row(
@@ -304,14 +297,9 @@ fun HomeScreen(
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Card(
+                    HomeCardSurface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(32.dp)),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-                        ),
-                        shape = RoundedCornerShape(32.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -406,18 +394,21 @@ fun HomeScreen(
                 }
             }
 
-            spec.sections.forEach { section ->
+            val weatherSectionIndex = spec.sections.indexOf(com.example.ui.theme.HomeSection.WEATHER)
+            spec.sections.forEachIndexed { sectionIndex, section ->
                 item(key = section.name) {
+                    val goldFrame = weatherSectionIndex >= 0 && sectionIndex > weatherSectionIndex
                     when (section) {
                         com.example.ui.theme.HomeSection.WEATHER -> WeatherSection(weather = weather, city = city ?: "")
                         com.example.ui.theme.HomeSection.MIRACLE -> HomeRandomMiracleCard(
+                            goldFrame = goldFrame,
                             onNavigateToMiracle = { miracleId ->
                                 viewModel.setTargetMiracleId(miracleId)
                                 onNavigateToDiscover()
                             }
                         )
-                        com.example.ui.theme.HomeSection.QUOTE -> DailyQuoteCard()
-                        com.example.ui.theme.HomeSection.DETAILS -> timings?.timings?.let { DetailedTimingsCard(timings = it) }
+                        com.example.ui.theme.HomeSection.QUOTE -> DailyQuoteCard(goldFrame = goldFrame)
+                        com.example.ui.theme.HomeSection.DETAILS -> timings?.timings?.let { DetailedTimingsCard(timings = it, goldFrame = goldFrame) }
                     }
                 }
             }
@@ -513,6 +504,7 @@ private fun QuickActionSheet(actions: List<QuickAction>, onDismiss: () -> Unit) 
 
 @Composable
 fun HomeRandomMiracleCard(
+    goldFrame: Boolean = true,
     onNavigateToMiracle: (String) -> Unit
 ) {
     val allMiracles = remember { QuranMiraclesRepository.miraclesList }
@@ -557,43 +549,15 @@ fun HomeRandomMiracleCard(
         }
     }
 
-    val theme = LocalAppTheme.current
-    val isDarkTheme = LocalThemeIsDark.current
     val primaryColor = MaterialTheme.colorScheme.primary
-    val isGlassTheme = theme != AppTheme.CLASSIC_EMERALD && theme.spec.isGlass
 
-    Card(
+    HomeCardSurface(
+        goldFrame = goldFrame,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 6.dp)
-            .then(
-                if (isGlassTheme) {
-                    Modifier.glassmorphicCard(theme = theme, isDark = isDarkTheme)
-                } else {
-                    Modifier
-                        .paperLiftShadow(theme = theme, isDarkTheme = isDarkTheme)
-                        .border(
-                            BorderStroke(
-                                1.dp,
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        primaryColor.copy(alpha = 0.5f),
-                                        primaryColor.copy(alpha = 0.2f),
-                                        primaryColor.copy(alpha = 0.45f)
-                                    )
-                                )
-                            ),
-                            theme.cardShape
-                        )
-                }
-            )
             .testTag("home_random_miracle_card")
-            .clickable { onNavigateToMiracle(currentMiracle.id) },
-        colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = theme, isDark = isDarkTheme)
-        ),
-        shape = theme.cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .clickable { onNavigateToMiracle(currentMiracle.id) }
     ) {
         Column(
             modifier = Modifier
@@ -606,9 +570,9 @@ fun HomeRandomMiracleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -653,7 +617,9 @@ fun HomeRandomMiracleCard(
                                 text = categoryName,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -699,10 +665,10 @@ fun HomeRandomMiracleCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Surah & Verse + Century badge
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Stack source lines so a long reference never squeezes into a narrow column.
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = "${item.surahName}, ${item.verseNumber}. Ayet",
@@ -712,14 +678,11 @@ fun HomeRandomMiracleCard(
                         )
                         if (item.discoveryCentury.isNotBlank()) {
                             Text(
-                                text = "•",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Text(
                                 text = item.discoveryCentury,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -758,9 +721,12 @@ fun HomeRandomMiracleCard(
             ) {
                 Text(
                     text = "Asırlar önce haber verilen ilmi hakikat",
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Row(
@@ -775,7 +741,8 @@ fun HomeRandomMiracleCard(
                         text = "Keşfi İncele",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = primaryColor
+                        color = primaryColor,
+                        maxLines = 1
                     )
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -790,7 +757,7 @@ fun HomeRandomMiracleCard(
 }
 
 @Composable
-fun DailyQuoteCard() {
+fun DailyQuoteCard(goldFrame: Boolean = true) {
     var selectedTab by remember { mutableStateOf(0) } // 0: Ayet, 1: Hadis, 2: Dua
     
     val ayetText = "“Rabbiniz şöyle buyurdu: Bana dua edin, duanızı kabul edeyim.”"
@@ -809,19 +776,13 @@ fun DailyQuoteCard() {
     }
 
     val theme = LocalAppTheme.current
-    val isDarkTheme = LocalThemeIsDark.current
     val isGlassTheme = theme != AppTheme.CLASSIC_EMERALD && theme.spec.isGlass
     val chipShape = if (isGlassTheme) theme.buttonShape else RoundedCornerShape(16.dp)
-    Card(
+    HomeCardSurface(
+        goldFrame = goldFrame,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp)
-            .glassmorphicCard(theme = theme, isDark = isDarkTheme),
-        colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = theme, isDark = isDarkTheme)
-        ),
-        shape = theme.cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -829,8 +790,8 @@ fun DailyQuoteCard() {
         ) {
             // Chips / Tabs
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf("Günün Ayeti", "Günün Hadisi", "Günün Duası").forEachIndexed { index, title ->
                     val isSelected = selectedTab == index
@@ -854,7 +815,8 @@ fun DailyQuoteCard() {
                             text = title,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = tc
+                            color = tc,
+                            maxLines = 1
                         )
                     }
                 }
@@ -934,7 +896,7 @@ private fun addMinutesTime(timeStr: String, minutes: Int): String {
 }
 
 @Composable
-fun DetailedTimingsCard(timings: Timings, modifier: Modifier = Modifier) {
+fun DetailedTimingsCard(timings: Timings, modifier: Modifier = Modifier, goldFrame: Boolean = true) {
     var isExpanded by remember { mutableStateOf(false) }
     
     val format = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -957,18 +919,11 @@ fun DetailedTimingsCard(timings: Timings, modifier: Modifier = Modifier) {
     val kerahatEvening = "${addMinutes(timings.Maghrib, -45)} - ${clean(timings.Maghrib)}"
     val teheccud = "01:30 - ${clean(timings.Fajr)}" // typical tahajjud range in TR
 
-    val theme = LocalAppTheme.current
-    val isDarkTheme = LocalThemeIsDark.current
-    Card(
+    HomeCardSurface(
+        goldFrame = goldFrame,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp)
-            .glassmorphicCard(theme = theme, isDark = isDarkTheme),
-        colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = theme, isDark = isDarkTheme)
-        ),
-        shape = theme.cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -1056,19 +1011,10 @@ fun DetailedRow(title: String, timeRange: String) {
 
 @Composable
 fun QuranHeroCard(onNavigate: () -> Unit) {
-    val theme = LocalAppTheme.current
-    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
-    Card(
+    HomeCardSurface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp)
-            .paperLiftShadow(theme = theme, isDarkTheme = isDarkTheme)
-            .border(theme.buttonBorder, theme.cardShape),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = theme.cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1086,14 +1032,14 @@ fun QuranHeroCard(onNavigate: () -> Unit) {
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
                 Text(
-                    text = "Kuran-ı Kerim ve Tefsir Karşılaştırması",
+                    text = "Kur’an-ı Kerim",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Farklı mealler (Diyanet, Elmalılı, Bilmen), tefsirler ve iniş/sure sırasına göre sıralama seçenekli tefsir karşılaştırma modülü.",
+                    text = "114 sureyi Arapça metni ve Rowwad Türkçe mealiyle çevrimdışı okuyun.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                     lineHeight = 16.sp
@@ -1319,7 +1265,6 @@ private fun calculateSabah(sunrise: String): String {
 fun WeatherSection(weather: WeatherResponse?, city: String) {
     if (weather == null || weather.current == null || weather.current.temperature_2m == null) return
     
-    val weatherTheme = LocalAppTheme.current
     val weatherPrimaryColor = MaterialTheme.colorScheme.primary
     var expanded by remember { mutableStateOf(false) }
     var expandedDayIndex by remember { mutableStateOf<Int?>(null) }
@@ -1334,31 +1279,14 @@ fun WeatherSection(weather: WeatherResponse?, city: String) {
     val wind = weather.current.wind_speed_10m?.let { "${it.toInt()} km/s" } ?: "-"
     val feelsLike = weather.current.apparent_temperature?.let { "${it.toInt()}°C" } ?: "-"
 
-    val isGlassWeather = weatherTheme != AppTheme.CLASSIC_EMERALD && weatherTheme.spec.isGlass
-    val weatherShape = if (isGlassWeather) weatherTheme.cardShape else RoundedCornerShape(24.dp)
-    Box(
+    HomeCardSurface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp)
-            .frostedGlassBackdrop(shape = weatherShape)
+            .clip(homeCardShape())
+            .clickable { expanded = !expanded }
+            .animateContentSize()
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (isGlassWeather) {
-                        Modifier.glassmorphicCard(theme = weatherTheme, shape = weatherShape, border = weatherTheme.buttonBorder)
-                    } else {
-                        Modifier.border(1.dp, Color.White.copy(alpha = 0.35f), weatherShape)
-                    }
-                )
-                .clip(weatherShape)
-                .clickable { expanded = !expanded }
-                .animateContentSize()
-                .background(Color.Transparent),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            elevation = CardDefaults.cardElevation(0.dp)
-        ) {
         Column {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -1571,7 +1499,6 @@ fun WeatherSection(weather: WeatherResponse?, city: String) {
     }
 }
 
-    }
 @androidx.compose.runtime.Composable
 fun WeatherDetailItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2001,22 +1928,20 @@ private fun QuickActionTiles(
     asGrid: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val theme = LocalAppTheme.current
-    val metrics = LocalThemeMetrics.current
     if (asGrid) {
         Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuickActionTile(actions[0], Modifier.weight(1f), theme.buttonShape, theme.buttonBorder)
-                QuickActionTile(actions[1], Modifier.weight(1f), theme.buttonShape, theme.buttonBorder)
+                QuickActionTile(actions[0], Modifier.weight(1f))
+                QuickActionTile(actions[1], Modifier.weight(1f))
             }
-            QuickActionTile(actions[2], Modifier.fillMaxWidth(), theme.buttonShape, theme.buttonBorder)
+            QuickActionTile(actions[2], Modifier.fillMaxWidth())
         }
     } else {
         Row(
             modifier,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            actions.forEach { QuickActionTile(it, Modifier.weight(1f), theme.buttonShape, theme.buttonBorder) }
+            actions.forEach { QuickActionTile(it, Modifier.weight(1f)) }
         }
     }
 }
@@ -2027,36 +1952,15 @@ private fun QuickActionChips(
     actions: List<QuickAction>,
     modifier: Modifier = Modifier
 ) {
-    val spec = LocalThemeSpec.current
-    val isDark = LocalThemeIsDark.current
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         actions.forEach { action ->
-            val chipShape = spec.shapes.badgeShape
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .frostedGlassBackdrop(
-                        shape = chipShape,
-                        tintColor = action.tint,
-                        tintAlpha = if (isDark) 0.20f else 0.16f,
-                        surfaceVeilAlpha = if (isDark) 0.26f else 0.32f
-                    )
-                    .border(
-                        BorderStroke(
-                            1.1.dp,
-                            Brush.linearGradient(
-                                listOf(
-                                    Color.White.copy(alpha = if (isDark) 0.46f else 0.78f),
-                                    action.tint.copy(alpha = 0.45f),
-                                    Color.White.copy(alpha = if (isDark) 0.18f else 0.42f)
-                                )
-                            )
-                        ),
-                        chipShape
-                    )
+                    .homeCardSurface()
                     .clickable { action.onClick() }
                     .heightIn(min = 42.dp),
                 contentAlignment = Alignment.Center
@@ -2091,35 +1995,11 @@ private fun QuickActionChips(
 @Composable
 private fun QuickActionTile(
     action: QuickAction,
-    modifier: Modifier,
-    shape: androidx.compose.ui.graphics.Shape,
-    border: BorderStroke
+    modifier: Modifier
 ) {
-    val theme = LocalAppTheme.current
-    val isDark = LocalThemeIsDark.current
-    val glassBorder = if (theme != AppTheme.CLASSIC_EMERALD && theme.spec.isGlass) {
-        border
-    } else {
-        BorderStroke(
-            1.2.dp,
-            Brush.linearGradient(
-                listOf(
-                    Color.White.copy(alpha = if (isDark) 0.46f else 0.80f),
-                    action.tint.copy(alpha = 0.46f),
-                    Color.White.copy(alpha = if (isDark) 0.20f else 0.44f)
-                )
-            )
-        )
-    }
     Box(
         modifier = modifier
-            .frostedGlassBackdrop(
-                shape = shape,
-                tintColor = action.tint,
-                tintAlpha = if (isDark) 0.22f else 0.16f,
-                surfaceVeilAlpha = if (isDark) 0.26f else 0.32f
-            )
-            .border(glassBorder, shape)
+            .homeCardSurface()
             .clickable { action.onClick() }
             .heightIn(min = 48.dp)
             .padding(vertical = 12.dp, horizontal = 8.dp),
@@ -2172,36 +2052,30 @@ fun HomeStepsMiniWidget(
         label = "home_steps_progress"
     )
 
-    val activeTheme = LocalAppTheme.current
-    val isGlass = activeTheme != AppTheme.CLASSIC_EMERALD && activeTheme.spec.isGlass
     val primaryColor = MaterialTheme.colorScheme.primary
     val accentEmerald = Color(0xFF10B981)
 
-    val widgetShape = if (isGlass) activeTheme.cardShape else RoundedCornerShape(22.dp)
-    Surface(
-        shape = widgetShape,
-        color = if (isGlass) glassSurfaceColor(activeTheme) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        border = if (isGlass) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
-        shadowElevation = if (isGlass) 0.dp else 4.dp,
+    HomeCardSurface(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-            .then(
-                if (isGlass) {
-                    Modifier.glassmorphicCard(theme = activeTheme, shape = widgetShape, border = activeTheme.buttonBorder)
-                } else {
-                    Modifier
-                }
-            )
             .clickable { onNavigateToSteps() }
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 10.dp, vertical = 12.dp)
         ) {
+            Text(
+                text = "ADIMSAYAR",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.4.sp,
+                color = primaryColor,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // Left: Circular Progress Ring + Step Icon
             Box(
                 contentAlignment = Alignment.Center,
@@ -2247,14 +2121,6 @@ fun HomeStepsMiniWidget(
             // Keep the essentials readable in the narrower side-by-side card.
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "ADIMSAYAR",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.4.sp,
-                    color = primaryColor,
-                    maxLines = 1
-                )
-                Text(
                     text = String.format(Locale("tr", "TR"), "%,d", todaySteps),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
@@ -2265,10 +2131,10 @@ fun HomeStepsMiniWidget(
                     text = "Hedef ${String.format(Locale("tr", "TR"), "%,d", safeGoal)}",
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    maxLines = 1
+                    maxLines = 2
                 )
             }
-
+            }
         }
     }
 }

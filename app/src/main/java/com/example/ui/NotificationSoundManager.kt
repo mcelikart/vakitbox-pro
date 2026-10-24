@@ -38,6 +38,7 @@ object NotificationSoundManager {
     @Volatile private var isDhikrSoundsInit = false
     private var fallbackToneGen: ToneGenerator? = null
 
+    @Synchronized
     private fun getToneGen(): ToneGenerator? {
         if (fallbackToneGen == null) {
             try {
@@ -81,7 +82,9 @@ object NotificationSoundManager {
                     else -> generateWoodenBeadSamples()
                 }
 
-                playPcmTrack(samples, 44100)
+                if (!playPcmTrack(samples, 44100, AudioAttributes.USAGE_MEDIA)) {
+                    getToneGen()?.startTone(ToneGenerator.TONE_PROP_BEEP, 45)
+                }
             } catch (e: Exception) {
                 try {
                     getToneGen()?.startTone(ToneGenerator.TONE_PROP_BEEP, 30)
@@ -415,14 +418,19 @@ object NotificationSoundManager {
         playPcmTrack(samples, sampleRate)
     }
 
-    private fun playPcmTrack(samples: ShortArray, sampleRate: Int) {
-        try {
-            val bufferSizeInBytes = samples.size * 2
+    private fun playPcmTrack(
+        samples: ShortArray,
+        sampleRate: Int,
+        audioUsage: Int = AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+    ): Boolean {
+        var activeTrack: AudioTrack? = null
+        return try {
+            val bufferSizeInBytes = samples.size * Short.SIZE_BYTES
             val track = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setUsage(audioUsage)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
@@ -439,7 +447,8 @@ object NotificationSoundManager {
             } else {
                 @Suppress("DEPRECATION")
                 AudioTrack(
-                    AudioManager.STREAM_NOTIFICATION,
+                    if (audioUsage == AudioAttributes.USAGE_MEDIA) AudioManager.STREAM_MUSIC
+                    else AudioManager.STREAM_NOTIFICATION,
                     sampleRate,
                     AudioFormat.CHANNEL_OUT_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
@@ -447,27 +456,36 @@ object NotificationSoundManager {
                     AudioTrack.MODE_STATIC
                 )
             }
+            activeTrack = track
 
-            if (track.state == AudioTrack.STATE_INITIALIZED) {
-                val written = track.write(samples, 0, samples.size)
-                if (written > 0) {
-                    track.play()
-                    scope.launch {
-                        val durationMs = ((samples.size.toDouble() / sampleRate) * 1000).toLong() + 300
-                        kotlinx.coroutines.delay(durationMs)
-                        try {
-                            track.stop()
-                            track.release()
-                        } catch (_: Exception) {}
-                    }
-                } else {
-                    track.release()
-                }
-            } else {
+            // MODE_STATIC starts in STATE_NO_STATIC_DATA. It becomes initialized
+            // only after PCM has been written; rejecting it before that replaced
+            // all four bead materials with the same fallback beep.
+            if (track.state == AudioTrack.STATE_UNINITIALIZED) {
                 track.release()
+                false
+            } else {
+                val written = track.write(samples, 0, samples.size)
+                if (written != samples.size || track.state != AudioTrack.STATE_INITIALIZED) {
+                    track.release()
+                    false
+                } else {
+                    track.setVolume(0.9f)
+                    track.play()
+                    val durationMs = ((samples.size.toDouble() / sampleRate) * 1000).toLong() + 120
+                    scope.launch {
+                        kotlinx.coroutines.delay(durationMs)
+                        runCatching {
+                            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.stop()
+                            track.release()
+                        }
+                    }
+                    true
+                }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (_: Exception) {
+            runCatching { activeTrack?.release() }
+            false
         }
     }
 }

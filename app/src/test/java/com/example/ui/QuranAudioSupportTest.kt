@@ -50,4 +50,31 @@ class QuranAudioSupportTest {
             QuranAudioSupport.mealSpeechText(spokenVerse, listOf("tr.diyanet"))
         )
     }
+
+    @Test
+    fun visibleEditionNeverBorrowsTheDefaultOrAnotherPublishersMeal() {
+        val selectedVerse = verse.copy(selectedMeal = "Başka yayıncının seçili meali")
+        assertEquals("", QuranAudioSupport.mealSpeechTextForEdition(selectedVerse, "tr.unknown"))
+        assertEquals("", QuranAudioSupport.mealSpeechTextForEdition(selectedVerse.copy(mealsMap = mapOf("tr.unknown" to " ")), "tr.unknown"))
+        // The fallback is still available when no publisher tab is being displayed.
+        assertEquals("Diyanet meal.", QuranAudioSupport.mealSpeechText(selectedVerse, listOf("tr.unknown")))
+    }
+
+    @Test
+    fun visibleEditionUsesOnlyItsOwnTextAndKeepsSpeechCleanup() {
+        val selectedVerse = verse.copy(
+            mealsMap = mapOf(
+                "tr.diyanet" to "Farklı yayıncının metni",
+                "tr.rowwad" to "<b>Hz. Musa</b> [1] kavmine seslendi."
+            )
+        )
+        assertEquals("Hazreti Musa kavmine seslendi.", QuranAudioSupport.mealSpeechTextForEdition(selectedVerse, "tr.rowwad"))
+    }
+
+    @Test
+    fun visibleEditionRejectsArabicWithoutReadingTheTurkishFallback() {
+        val selectedVerse = verse.copy(mealsMap = mapOf("tr.rowwad" to "بِسْمِ اللَّهِ", "ar.alafasy" to "Arapça olmayan etiketli metin"))
+        assertEquals("", QuranAudioSupport.mealSpeechTextForEdition(selectedVerse, "tr.rowwad"))
+        assertEquals("", QuranAudioSupport.mealSpeechTextForEdition(selectedVerse, "ar.alafasy"))
+    }
 }

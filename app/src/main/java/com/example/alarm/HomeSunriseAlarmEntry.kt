@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.ui.theme.HomeCardSurface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -71,10 +70,9 @@ fun HomeSunriseAlarmEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val subtitle = next?.let {
         "Sonraki alarm ${SimpleDateFormat("d MMM • HH:mm", Locale.forLanguageTag("tr-TR")).format(Date(it.triggerAtMillis))}"
     } ?: "Güneşten 30 dk önce • Süreyi değiştirebilirsiniz"
-    Card(
+    HomeCardSurface(
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp)
-            .testTag("home-sunrise-alarm").clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            .testTag("home-sunrise-alarm").clickable(onClick = onClick)
     ) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -84,14 +82,13 @@ fun HomeSunriseAlarmEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2
+                    maxLines = 3
                 )
             }
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

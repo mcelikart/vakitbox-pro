@@ -8,9 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.LinearProgressIndicator
 import com.example.data.GeminiApiClient
 import com.example.data.GenerateContentRequest
@@ -237,6 +238,48 @@ sealed class DiscoverSubScreen {
     object AppSettings : DiscoverSubScreen()
 }
 
+/** Stable IDs preserve navigation across speech activities and Android recreation. */
+internal val DiscoverSubScreenSaver = Saver<DiscoverSubScreen, String>(
+    save = { screen ->
+        when (screen) {
+            DiscoverSubScreen.Main -> "main"
+            DiscoverSubScreen.Notes -> "notes"
+            DiscoverSubScreen.QuranMiracles -> "quran-miracles"
+            DiscoverSubScreen.QazaTracker -> "qaza-tracker"
+            DiscoverSubScreen.Surahs -> "surahs"
+            DiscoverSubScreen.EsmaUlHusna -> "esma-ul-husna"
+            DiscoverSubScreen.AlarmSettings -> "alarm-settings"
+            DiscoverSubScreen.ZakatCalc -> "zakat-calculator"
+            DiscoverSubScreen.QuranIndex -> "quran-index"
+            DiscoverSubScreen.HadithLibrary -> "hadith-library"
+            DiscoverSubScreen.QuranReading -> "quran-reading"
+            DiscoverSubScreen.Steps -> "steps"
+            DiscoverSubScreen.NearestMosque -> "nearest-mosque"
+            DiscoverSubScreen.PrayerLearning -> "prayer-learning"
+            DiscoverSubScreen.AppSettings -> "app-settings"
+        }
+    },
+    restore = { id ->
+        when (id) {
+            "notes" -> DiscoverSubScreen.Notes
+            "quran-miracles" -> DiscoverSubScreen.QuranMiracles
+            "qaza-tracker" -> DiscoverSubScreen.QazaTracker
+            "surahs" -> DiscoverSubScreen.Surahs
+            "esma-ul-husna" -> DiscoverSubScreen.EsmaUlHusna
+            "alarm-settings" -> DiscoverSubScreen.AlarmSettings
+            "zakat-calculator" -> DiscoverSubScreen.ZakatCalc
+            "quran-index" -> DiscoverSubScreen.QuranIndex
+            "hadith-library" -> DiscoverSubScreen.HadithLibrary
+            "quran-reading" -> DiscoverSubScreen.QuranReading
+            "steps" -> DiscoverSubScreen.Steps
+            "nearest-mosque" -> DiscoverSubScreen.NearestMosque
+            "prayer-learning" -> DiscoverSubScreen.PrayerLearning
+            "app-settings" -> DiscoverSubScreen.AppSettings
+            else -> DiscoverSubScreen.Main
+        }
+    }
+)
+
 data class DiscoverItem(
     val title: String,
     val subtitle: String,
@@ -248,7 +291,9 @@ data class DiscoverItem(
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun DiscoverScreen(viewModel: PrayerViewModel, onNavigate: (String) -> Unit) {
-    var currentScreen by remember { mutableStateOf<DiscoverSubScreen>(DiscoverSubScreen.Main) }
+    var currentScreen by rememberSaveable(stateSaver = DiscoverSubScreenSaver) {
+        mutableStateOf<DiscoverSubScreen>(DiscoverSubScreen.Main)
+    }
     val haptic = LocalHapticFeedback.current
 
 
@@ -4131,7 +4176,9 @@ data class SurahVerse(
     val diyanetTefsir: String,
     val bilmenTefsir: String,
     val selectedMeal: String = "",
-    val mealsMap: Map<String, String> = emptyMap()
+    val mealsMap: Map<String, String> = emptyMap(),
+    val footnotes: String = "",
+    val footnotesMap: Map<String, String> = emptyMap()
 )
 
 @androidx.compose.runtime.Immutable
@@ -4159,7 +4206,7 @@ fun groupSurahVerses(verses: List<SurahVerse>, edKey: String?, disableGrouping: 
     if (verses.isEmpty()) return emptyList()
     if (disableGrouping) {
         return verses.map { verse ->
-            val rawMeal = if (edKey != null) (verse.mealsMap[edKey] ?: verse.diyanetMeal) else verse.diyanetMeal
+            val rawMeal = if (edKey != null) verse.mealsMap[edKey].orEmpty() else verse.selectedMeal.ifBlank { verse.diyanetMeal }
             GroupedVerseItem(
                 startVerseNumber = verse.number,
                 endVerseNumber = verse.number,
@@ -4175,9 +4222,9 @@ fun groupSurahVerses(verses: List<SurahVerse>, edKey: String?, disableGrouping: 
 
     for (verse in verses) {
         val rawMeal = if (edKey != null) {
-            verse.mealsMap[edKey] ?: verse.diyanetMeal
+            verse.mealsMap[edKey].orEmpty()
         } else {
-            verse.diyanetMeal
+            verse.selectedMeal.ifBlank { verse.diyanetMeal }
         }
         val trimmedMeal = rawMeal.trim()
 
@@ -4707,116 +4754,31 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
     val mainCoroutineScope = rememberCoroutineScope()
     val surahView = androidx.compose.ui.platform.LocalView.current
     
-    val selectedLang by viewModel.selectedLanguage.collectAsState()
-    val activeEditionsSet by viewModel.selectedEditions.collectAsState()
     val strings = LocalAppStrings.current
-
-    val orderedEditionKeys = remember {
-        listOf(
-            "tr.diyanet", "tr.yazir", "tr.vakfi", "tr.ozturk", "tr.suat", "tr.bulac", "tr.golpinarli",
-            "tr.transliteration", "en.sahih", "en.khattab", "en.yusufali", "fr.hamidullah", "de.aburida",
-            "de.bubenheim", "ru.kuliev", "az.mammadaliyev", "ar.jalalayn", "ar.muyassar"
-        )
-    }
-
-    val activeEditionsList = remember(activeEditionsSet) {
-        val list = orderedEditionKeys.filter { activeEditionsSet.contains(it) } + activeEditionsSet.filter { !orderedEditionKeys.contains(it) }
-        if (list.isEmpty()) listOf("tr.diyanet") else list
-    }
-
-    // Surah payloads never change for a given (id, edition-set), so they are
-    // held in memory. Re-entering the reader used to re-download everything,
-    // which is what made the module feel like it hung on open.
+    val activeEditionsSet by viewModel.selectedEditions.collectAsState()
+    val activeEditionsList = remember(activeEditionsSet) { QuranReadingEditions.orderedMeals(activeEditionsSet) }
+    val offlineReader = remember(context) { OfflineQuranReader(context.applicationContext) }
     val surahCache = rememberQuranSurahCache()
+    var surahLoadError by remember { mutableStateOf(false) }
+    var loadAttempt by remember { mutableStateOf(0) }
 
-    LaunchedEffect(currentSurah?.id, activeEditionsSet) {
+    LaunchedEffect(currentSurah?.id, activeEditionsList, loadAttempt) {
         val surah = currentSurah ?: return@LaunchedEffect
-        val key = surah.id to activeEditionsList
-        val editionsKey = activeEditionsList
-
-        // Instant path: already fetched, and the edition set has not changed.
-        surahCache.get(key.first, key.second)?.let { cached ->
+        surahLoadError = false
+        surahCache.get(surah.id, activeEditionsList)?.let { cached ->
             currentSurah = surah.copy(verses = cached)
             isLoadingSurah = false
             return@LaunchedEffect
         }
-
         isLoadingSurah = true
         try {
-            val api = com.example.data.RetrofitClient.quranApiService
-            // Everything is fetched concurrently. The previous version walked the
-            // edition list in a sequential for-loop, so a surah with five active
-            // meals cost five serial round-trips before the first frame of text
-            // could appear.
-            val arabicDeferred = async { api.getSurahArabic(surah.id) }
-            val transDeferred = async {
-                runCatching { api.getSurahEdition(surah.id, "tr.transliteration") }
-                    .getOrNull()
-                    ?.takeIf { it.code == 200 && !it.data.ayahs.isNullOrEmpty() }
-                    ?: runCatching { api.getSurahEdition(surah.id, "en.transliteration") }.getOrNull()
-            }
-            val editionDeferreds = editionsKey.map { ed ->
-                ed to async { runCatching { api.getSurahEdition(surah.id, ed) }.getOrNull() }
-            }
-
-            val arabicRes = arabicDeferred.await()
-            val transRes = transDeferred.await()
-            val editionResponses = editionDeferreds.mapNotNull { (ed, deferred) ->
-                deferred.await()?.takeIf { it.code == 200 }?.let { ed to it }
-            }.toMap()
-
-            if (arabicRes.code == 200) {
-                // Parsing is regex-heavy: 286 verses x N meals, each running the
-                // bismillah stripper. Doing that on the main thread is what caused
-                // the visible freeze, so it runs on the default dispatcher.
-                val surahId = surah.id
-                val verses = withContext(Dispatchers.Default) {
-                    arabicRes.data.ayahs.mapIndexed { index, ar ->
-                        val trans = transRes?.data?.ayahs?.getOrNull(index)
-                        val isFirstVerseNonFatiha = (surahId != 1 && surahId != 9 && index == 0)
-
-                        val arText = if (isFirstVerseNonFatiha) stripArabicBismillah(ar.text) else ar.text
-                        val transText = if (isFirstVerseNonFatiha) {
-                            stripTransliterationBismillah(cleanTransliteration(trans?.text ?: "..."))
-                        } else {
-                            cleanTransliteration(trans?.text ?: "...")
-                        }
-
-                        val mealsMap = HashMap<String, String>(editionsKey.size)
-                        for (ed in editionsKey) {
-                            val rawText = editionResponses[ed]?.data?.ayahs?.getOrNull(index)?.text ?: ""
-                            mealsMap[ed] = if (isFirstVerseNonFatiha) stripMealBismillah(rawText) else rawText
-                        }
-
-                        // Turkish fallbacks only: mealsMap can hold the Arabic
-                        // original edition, and a translation slot must never
-                        // be filled with the source text.
-                        val turkishMeals = mealsMap.filterKeys { it.startsWith("tr.") }
-                        val diyanetText = turkishMeals["tr.diyanet"]
-                            ?: turkishMeals.values.firstOrNull { QuranAudioSupport.isSpeakable(it) }
-                            ?: ""
-
-                        SurahVerse(
-                            number = ar.numberInSurah,
-                            arabic = arText,
-                            pronunciation = transText,
-                            diyanetMeal = diyanetText,
-                            elmaliliMeal = turkishMeals["tr.yazir"] ?: "",
-                            vakfiMeal = turkishMeals["tr.vakfi"] ?: "",
-                            selectedMeal = diyanetText,
-                            diyanetTefsir = "",
-                            bilmenTefsir = "",
-                            mealsMap = mealsMap
-                        )
-                    }
-                }
-                surahCache.put(key.first, key.second, verses)
-                currentSurah = surah.copy(verses = verses)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            e.printStackTrace()
+            val verses = offlineReader.loadSurah(surah, activeEditionsList)
+            surahCache.put(surah.id, activeEditionsList, verses)
+            currentSurah = surah.copy(verses = verses)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            surahLoadError = true
         } finally {
             isLoadingSurah = false
         }
@@ -4864,6 +4826,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
     }
     var autoPlayNextVerse by remember { mutableStateOf(true) }
     var activeMediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var visibleMealEdition by remember { mutableStateOf<String?>(null) }
 
     // Turkish meal narration now lives in a dedicated engine: offline-first
     // voice selection, sentence-level chunking (no more truncation), real
@@ -4958,7 +4921,10 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
 
         if (source == "meal") {
             val verse = surah.verses.firstOrNull { it.number == verseNumber }
-            val meal = verse?.let { QuranAudioSupport.mealSpeechText(it, activeEditionsList) }.orEmpty()
+            val meal = verse?.let {
+                visibleMealEdition?.let { edition -> QuranAudioSupport.mealSpeechTextForEdition(it, edition) }
+                    ?: QuranAudioSupport.mealSpeechText(it, activeEditionsList)
+            }.orEmpty()
             if (meal.isBlank()) {
                 stopAudio()
                 android.widget.Toast.makeText(
@@ -5599,8 +5565,9 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                         }
 
-                                        if (savedVerse.diyanetMeal.isNotEmpty()) {
-                                            val mealText = savedVerse.diyanetMeal.trim()
+                                        val savedMeal = savedVerse.selectedMeal.ifBlank { savedVerse.diyanetMeal }
+                                        if (savedMeal.isNotEmpty()) {
+                                            val mealText = savedMeal.trim()
                                             val formattedMeal = if (mealText.startsWith("“") || mealText.startsWith("\"")) mealText else "“$mealText”"
                                             Text(
                                                 text = formattedMeal,
@@ -5610,6 +5577,14 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                             )
                                         }
 
+                                        if (savedVerse.footnotes.isNotBlank()) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(savedVerse.footnotes, fontSize = 13.sp, lineHeight = 20.sp)
+                                        }
+                                        if (savedVerse.mealSource.isNotBlank()) {
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(savedVerse.mealSource, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                        }
                                         Spacer(modifier = Modifier.height(12.dp))
 
                                         Row(
@@ -5648,36 +5623,29 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
+        } else if (surahLoadError) {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Ayetler yüklenemedi.", color = MaterialTheme.colorScheme.onBackground)
+                TextButton(onClick = { loadAttempt++ }) { Text("Yeniden dene") }
+            }
         } else {
             // SURE OKUMA & TEFSİR KARŞILAŞTIRMA DETAY GÖRÜNÜMÜ
             val surah = currentSurah
             if (surah != null) {
-                val editionDisplayNames = mapOf(
-                    "tr.diyanet" to "Diyanet",
-                    "tr.yazir" to "Elmalılı",
-                    "tr.vakfi" to "TDV",
-                    "tr.ozturk" to "Bilmen",
-                    "tr.suat" to "S. Yıldırım",
-                    "tr.bulac" to "A. Bulaç",
-                    "tr.golpinarli" to "A. Gölpınarlı",
-                    "tr.transliteration" to "Türkçe Okunuş",
-                    "en.sahih" to "Sahih Int.",
-                    "en.khattab" to "Clear Quran",
-                    "en.yusufali" to "Yusuf Ali",
-                    "fr.hamidullah" to "Hamidullah",
-                    "de.aburida" to "Abu Rida",
-                    "de.bubenheim" to "Bubenheim",
-                    "ru.kuliev" to "Кулиев",
-                    "az.mammadaliyev" to "Məmmədəliyev",
-                    "ar.jalalayn" to "الجلالين",
-                    "ar.muyassar" to "الميسر"
-                )
-
-                val tabs = remember(activeEditionsList) {
-                    activeEditionsList.map { editionDisplayNames[it] ?: "Meal" } + listOf("Arapça", "Okunuş")
+                val hasPronunciation = surah.verses.isNotEmpty() && surah.verses.all { it.pronunciation.isNotBlank() }
+                val tabs = remember(activeEditionsList, surah.id, hasPronunciation) {
+                    activeEditionsList.map(QuranReadingEditions::name) + listOf("Arapça") +
+                        if (hasPronunciation) listOf("Okunuş") else emptyList()
                 }
                 val pagerState = rememberPagerState(pageCount = { tabs.size })
                 val coroutineScope = rememberCoroutineScope()
+                LaunchedEffect(pagerState.currentPage, activeEditionsList) {
+                    visibleMealEdition = activeEditionsList.getOrNull(pagerState.currentPage)
+                }
 
                 val verse = selectedVerseForCopy
                 if (verse != null) {
@@ -5685,7 +5653,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                     val isSaved = viewModel.isVerseSaved(surah.id, verse.number)
                     val copyText = if (page < activeEditionsList.size) {
                         val edKey = activeEditionsList[page]
-                        verse.mealsMap[edKey] ?: verse.diyanetMeal
+                        verse.mealsMap[edKey].orEmpty()
                     } else if (page == activeEditionsList.size) {
                         verse.arabic
                     } else {
@@ -5799,6 +5767,8 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
                                         .clickable {
+                                            val selectedEdition = activeEditionsList.getOrNull(page)
+                                                ?: activeEditionsList.firstOrNull { !verse.mealsMap[it].isNullOrBlank() }
                                             val sv = SavedVerse(
                                                 surahId = surah.id,
                                                 surahName = surah.name,
@@ -5807,7 +5777,10 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                                 pronunciation = verse.pronunciation,
                                                 diyanetMeal = verse.diyanetMeal,
                                                 elmaliliMeal = verse.elmaliliMeal,
-                                                vakfiMeal = verse.vakfiMeal
+                                                vakfiMeal = verse.vakfiMeal,
+                                                selectedMeal = selectedEdition?.let { verse.mealsMap[it] }.orEmpty(),
+                                                mealSource = selectedEdition?.let(QuranReadingEditions::sourceLabel).orEmpty(),
+                                                footnotes = selectedEdition?.let { verse.footnotesMap[it] }.orEmpty()
                                             )
                                             viewModel.toggleSaveVerse(sv)
                                             val msg = if (isSaved) "Ayet kaydedilenlerden çıkarıldı." else "Ayet kaydedildi."
@@ -5836,6 +5809,13 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                     }
                 } else {
                     Column(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    Text(
+                        text = activeEditionsList.getOrNull(pagerState.currentPage)?.let(QuranReadingEditions::sourceLabel)
+                            ?: if (pagerState.currentPage == activeEditionsList.size) "Tanzil · Uthmani 1.1" else "Türkçe Okunuş",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                     ScrollableTabRow(
                         selectedTabIndex = pagerState.currentPage.coerceAtMost(tabs.size - 1),
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
@@ -5863,41 +5843,33 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                     val listStates = remember(tabs.size, surah.id) { List(tabs.size) { androidx.compose.foundation.lazy.LazyListState() } }
                     val currentPage = pagerState.currentPage.coerceAtMost(tabs.size - 1)
                     val currentListState = listStates.getOrNull(currentPage) ?: rememberLazyListState()
-                    val hasBesmele = (surah.id != 1 && surah.id != 9)
+                    val pageIndices = remember(surah.verses, tabs.size, activeEditionsList) {
+                        List(tabs.size) { pageIndex ->
+                            val isArabic = pageIndex == activeEditionsList.size
+                            val edition = activeEditionsList.getOrNull(pageIndex)
+                            val available = edition == null || surah.verses.any { !it.mealsMap[edition].isNullOrBlank() }
+                            QuranReaderPageIndex(
+                                groups = if (available) groupSurahVerses(surah.verses, edition, disableGrouping = isArabic) else emptyList(),
+                                hasBesmeleHeader = available && hasQuranBesmeleHeader(surah.id, isArabic)
+                            )
+                        }
+                    }
 
                     var currentReadingVerseNumber by remember(surah.id) { androidx.compose.runtime.mutableIntStateOf(1) }
                     var currentReadingOffset by remember(surah.id) { androidx.compose.runtime.mutableIntStateOf(0) }
-                    var isReadingAtBesmele by remember(surah.id) { androidx.compose.runtime.mutableStateOf(false) }
+                    var isReadingAtBesmele by remember(surah.id) {
+                        androidx.compose.runtime.mutableStateOf(hasQuranBesmeleHeader(surah.id, isArabicPage = false))
+                    }
                     var isProgrammaticScroll by remember { androidx.compose.runtime.mutableStateOf(false) }
 
-                    fun getVerseNumberFromItemIndex(itemIndex: Int, pageIndex: Int): Int {
-                        if (hasBesmele && itemIndex == 0) return 1
-                        val isArabic = (pageIndex == activeEditionsList.size)
-                        val edKey = if (pageIndex < activeEditionsList.size) activeEditionsList[pageIndex] else null
-                        val gList = groupSurahVerses(surah.verses, edKey, disableGrouping = isArabic)
-                        if (gList.isEmpty()) return 1
-                        val gIndex = if (hasBesmele) itemIndex - 1 else itemIndex
-                        val safeGIndex = gIndex.coerceIn(0, gList.lastIndex)
-                        return gList[safeGIndex].startVerseNumber
-                    }
+                    fun getVerseNumberFromItemIndex(itemIndex: Int, pageIndex: Int): Int =
+                        pageIndices[pageIndex].verseNumberForItem(itemIndex)
 
-                    fun getItemIndexFromVerseNumber(verseNum: Int, targetPageIndex: Int, isBesmele: Boolean = false): Int {
-                        if (hasBesmele && isBesmele) return 0
-                        val isArabic = (targetPageIndex == activeEditionsList.size)
-                        val edKey = if (targetPageIndex < activeEditionsList.size) activeEditionsList[targetPageIndex] else null
-                        val gList = groupSurahVerses(surah.verses, edKey, disableGrouping = isArabic)
-                        if (gList.isEmpty()) return 0
-                        val targetGroupIdx = gList.indexOfFirst { verseNum in it.startVerseNumber..it.endVerseNumber }
-                        val safeGroupIdx = if (targetGroupIdx != -1) {
-                            targetGroupIdx
-                        } else {
-                            (gList.indexOfFirst { it.startVerseNumber >= verseNum }.takeIf { it != -1 } ?: gList.lastIndex)
-                        }
-                        return if (hasBesmele) safeGroupIdx + 1 else safeGroupIdx
-                    }
-                    
+                    fun getItemIndexFromVerseNumber(verseNum: Int, targetPageIndex: Int, isBesmele: Boolean = false): Int =
+                        pageIndices[targetPageIndex].itemIndexForVerse(verseNum, atBesmele = isBesmele)
+
                     // Unified position sync and vertical scroll tracker per active page
-                    androidx.compose.runtime.LaunchedEffect(currentPage, surah.id) {
+                    androidx.compose.runtime.LaunchedEffect(currentPage, surah.id, activeEditionsList) {
                         val activeState = listStates.getOrNull(currentPage) ?: return@LaunchedEffect
                         
                         // 1. Programmatically scroll active page to the stored reading verse position
@@ -5916,7 +5888,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                             )
                         }.collect { (itemIdx, offset, isScrolling) ->
                             if (!isProgrammaticScroll && !pagerState.isScrollInProgress && isScrolling) {
-                                val isBesmele = (hasBesmele && itemIdx == 0)
+                                val isBesmele = pageIndices[currentPage].isBesmeleItem(itemIdx)
                                 val vNum = if (isBesmele) 1 else getVerseNumberFromItemIndex(itemIdx, currentPage)
                                 
                                 currentReadingVerseNumber = vNum
@@ -5960,9 +5932,8 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
 
                         val isArabicPage = (page == activeEditionsList.size)
                         val edKey = if (page < activeEditionsList.size) activeEditionsList[page] else null
-                        val groupedVerses = remember(surah.verses, page, activeEditionsList) {
-                            groupSurahVerses(surah.verses, edKey, disableGrouping = isArabicPage)
-                        }
+                        val pageIndex = pageIndices[page]
+                        val groupedVerses = pageIndex.groups
 
                         Box(modifier = Modifier.fillMaxSize()) {
                             LazyColumn(
@@ -5974,7 +5945,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 // Beautiful Besmele Header item (For all Surahs EXCEPT Fâtihah (1) and Tevbe (9))
-                                if (surah.id != 1 && surah.id != 9) {
+                                if (pageIndex.hasBesmeleHeader) {
                                     item {
                                         Card(
                                             colors = CardDefaults.cardColors(
@@ -6026,6 +5997,16 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                     }
                                 }
 
+                                if (edKey != null && groupedVerses.isEmpty()) {
+                                    item {
+                                        Text(
+                                            "Bu kaynak bu pakette bulunmuyor.",
+                                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
                                 items(groupedVerses) { groupItem ->
                                     val isGroupPlaying = playingVerseNumber != null && playingVerseNumber in groupItem.startVerseNumber..groupItem.endVerseNumber
                                     val mainVerse = groupItem.mainVerse
@@ -6129,6 +6110,17 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                                     lineHeight = (26 * fontScale).sp,
                                                     fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
                                                 )
+                                                val editionNotes = groupItem.verses.mapNotNull { it.footnotesMap[edKey] }
+                                                    .filter { it.isNotBlank() }.distinct().joinToString("\n\n")
+                                                if (editionNotes.isNotBlank()) {
+                                                    Spacer(Modifier.height(8.dp))
+                                                    Text(
+                                                        text = editionNotes,
+                                                        fontSize = (13 * fontScale).sp,
+                                                        lineHeight = (20 * fontScale).sp,
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                    )
+                                                }
                                             } else if (page == activeEditionsList.size) {
                                                 Text(
                                                     text = mainVerse.arabic,
@@ -6153,13 +6145,37 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                                         modifier = Modifier.padding(bottom = 6.dp)
                                                     )
                                                     val mealText = groupItem.mealText.trim()
-                                                    val formattedMeal = if (mealText.startsWith("“") || mealText.startsWith("\"")) mealText else "“$mealText”"
-                                                    Text(
-                                                        text = formattedMeal,
-                                                        fontSize = (16 * fontScale).sp,
-                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
-                                                        lineHeight = (24 * fontScale).sp
-                                                    )
+                                                    if (mealText.isNotBlank()) {
+                                                        val primaryMealEdition = activeEditionsList.firstOrNull {
+                                                            !mainVerse.mealsMap[it].isNullOrBlank()
+                                                        }
+                                                        val formattedMeal = if (mealText.startsWith("“") || mealText.startsWith("\"")) mealText else "“$mealText”"
+                                                        Text(
+                                                            text = formattedMeal,
+                                                            fontSize = (16 * fontScale).sp,
+                                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
+                                                            lineHeight = (24 * fontScale).sp
+                                                        )
+                                                        if (primaryMealEdition != null) {
+                                                            Spacer(Modifier.height(6.dp))
+                                                            Text(
+                                                                text = QuranReadingEditions.sourceLabel(primaryMealEdition),
+                                                                fontSize = (11 * fontScale).sp,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                            val editionNotes = groupItem.verses.mapNotNull { it.footnotesMap[primaryMealEdition] }
+                                                                .filter { it.isNotBlank() }.distinct().joinToString("\n\n")
+                                                            if (editionNotes.isNotBlank()) {
+                                                                Spacer(Modifier.height(8.dp))
+                                                                Text(
+                                                                    text = editionNotes,
+                                                                    fontSize = (13 * fontScale).sp,
+                                                                    lineHeight = (20 * fontScale).sp,
+                                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -6174,6 +6190,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                 .fillMaxHeight()
                                 .width(28.dp)
                                 .pointerInput(groupedVerses) {
+                                    if (groupedVerses.isEmpty()) return@pointerInput
                                     var lastHapticTime = 0L
                                     detectVerticalDragGestures(
                                         onDragStart = { offset ->
@@ -6181,7 +6198,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                             fastScrollY = offset.y
                                             fastScrollPercent = (fastScrollY / size.height).coerceIn(0f, 1f)
                                             val targetIndex = (fastScrollPercent * (groupedVerses.size - 1)).toInt().coerceIn(0, groupedVerses.lastIndex)
-                                            coroutineScope.launch { listState.scrollToItem(targetIndex) }
+                                            coroutineScope.launch { listState.scrollToItem(pageIndex.itemIndexForGroup(targetIndex)) }
                                             if (targetIndex != previousTargetIndex) {
                                                 val currentTime = System.currentTimeMillis()
                                                 if (currentTime - lastHapticTime > 80) {
@@ -6198,7 +6215,7 @@ fun QuranReadingScreen(viewModel: PrayerViewModel, onBack: () -> Unit) {
                                         fastScrollY += dragAmount
                                         fastScrollPercent = (fastScrollY / size.height).coerceIn(0f, 1f)
                                         val targetIndex = (fastScrollPercent * (groupedVerses.size - 1)).toInt().coerceIn(0, groupedVerses.lastIndex)
-                                        coroutineScope.launch { listState.scrollToItem(targetIndex) }
+                                        coroutineScope.launch { listState.scrollToItem(pageIndex.itemIndexForGroup(targetIndex)) }
                                         if (targetIndex != previousTargetIndex) {
                                             val currentTime = System.currentTimeMillis()
                                             if (currentTime - lastHapticTime > 80) {

@@ -1,0 +1,143 @@
+VakitBox Pro — çevrimdışı Kur’an okuyucu kaynakları
+
+Bu dosyalar Tanzil'in yayımladığı meal ve çeviriyazı metinleridir. Ayet
+içerikleri değiştirilmeden, sure ve ayet numaraları doğrulanarak paketlenir.
+Türkçe ve İngilizce mealler birbirinin yerine etiketlenmez.
+
+Kaynak ve güncellemeler: https://tanzil.net/trans/
+Kullanım koşulları: https://tanzil.net/trans/
+Tanzil bu çevirileri gayriticari kullanıma sunar. Ticari kullanım için
+çevirmen/yayıncı izni gerekir. Üçten fazla çeviri kullanıldığında Tanzil'in
+çeviri sayfasına bağlantı verilmesi istenir. Çevirilerin telifleri ilgili
+çevirmen/yayıncılara aittir; Arapça Tanzil metninin lisansı meallere
+uygulanmış sayılmaz. Kaynak üstverileri aşağıda korunmuştur.
+
+Rowwad 1.0.4 ve Arapça Uthmani 1.1 için ayrıca quran_search/NOTICE.txt
+ve ilgili lisans dosyalarına bakınız.
+
+Diyanet İşleri
+https://tanzil.net/trans/tr.diyanet
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Diyanet İşleri
+#  Translator: Diyanet Isleri
+#  Language: Turkish
+#  ID: tr.diyanet
+#  Last Update: December 27, 2011
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Yaşar Nuri Öztürk
+https://tanzil.net/trans/tr.ozturk
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Öztürk
+#  Translator: Yasar Nuri Ozturk
+#  Language: Turkish
+#  ID: tr.ozturk
+#  Last Update: June 4, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Suat Yıldırım
+https://tanzil.net/trans/tr.yildirim
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Suat Yıldırım
+#  Translator: Suat Yildirim
+#  Language: Turkish
+#  ID: tr.yildirim
+#  Last Update: September 14, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Türkiye Diyanet Vakfı
+https://tanzil.net/trans/tr.vakfi
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Diyanet Vakfı
+#  Translator: Diyanet Vakfi
+#  Language: Turkish
+#  ID: tr.vakfi
+#  Last Update: June 4, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Abdulbaki Gölpınarlı
+https://tanzil.net/trans/tr.golpinarli
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Abdulbakî Gölpınarlı
+#  Translator: Abdulbaki Golpinarli
+#  Language: Turkish
+#  ID: tr.golpinarli
+#  Last Update: September 14, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Süleyman Ateş
+https://tanzil.net/trans/tr.ates
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Süleyman Ateş
+#  Translator: Suleyman Ates
+#  Language: Turkish
+#  ID: tr.ates
+#  Last Update: June 4, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Elmalılı Hamdi Yazır
+https://tanzil.net/trans/tr.yazir
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Elmalılı Hamdi Yazır
+#  Translator: Elmalili Hamdi Yazir
+#  Language: Turkish
+#  ID: tr.yazir
+#  Last Update: June 4, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Saheeh International
+https://tanzil.net/trans/en.sahih
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Saheeh International
+#  Translator: Saheeh International
+#  Language: English
+#  ID: en.sahih
+#  Last Update: April 24, 2011
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+
+Muhammet Abay — Türkçe Okunuş
+https://tanzil.net/trans/tr.transliteration
+# --------------------------------------------------------------------
+#
+#  Quran Translation
+#  Name: Çeviriyazı
+#  Translator: Muhammet Abay
+#  Language: Turkish
+#  ID: tr.transliteration
+#  Last Update: September 15, 2010
+#  Source: Tanzil.net
+#
+# --------------------------------------------------------------------
+

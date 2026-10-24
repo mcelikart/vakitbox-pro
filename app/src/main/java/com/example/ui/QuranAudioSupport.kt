@@ -59,6 +59,13 @@ internal object QuranAudioSupport {
         return polishForSpeech(raw)
     }
 
+    /** A visible publisher tab must never narrate a different publisher's text. */
+    fun mealSpeechTextForEdition(verse: SurahVerse, edition: String): String {
+        if (!isLatinEdition(edition)) return ""
+        val text = verse.mealsMap[edition]?.takeIf { isSpeakable(it) } ?: return ""
+        return polishForSpeech(text)
+    }
+
     /** Turkish and English editions speak on a Turkish engine; Arabic ones do not. */
     private fun isLatinEdition(key: String): Boolean {
         val lang = key.substringBefore('.').lowercase(Locale.ROOT)

@@ -9,5 +9,8 @@ data class SavedVerse(
     val diyanetMeal: String,
     val elmaliliMeal: String = "",
     val vakfiMeal: String = "",
-    val savedAtTimestamp: Long = System.currentTimeMillis()
+    val savedAtTimestamp: Long = System.currentTimeMillis(),
+    val selectedMeal: String = "",
+    val mealSource: String = "",
+    val footnotes: String = ""
 )

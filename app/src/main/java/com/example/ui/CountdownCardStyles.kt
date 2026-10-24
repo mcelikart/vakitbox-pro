@@ -243,15 +243,15 @@ fun HeroGokKubbeCard(
     val keraatRedColor = Color(0xFFE53935)
     val nodeGlowColor = if (isDay) Color(0xFFFFD54F).copy(alpha = 0.45f) else themeColors.glowColor.copy(alpha = 0.45f)
     val nodeCoreColor = if (isDay) Color(0xFFFF8F00) else themeColors.goldMotifColor
-    val isGlassArc = arcTheme != AppTheme.CLASSIC_EMERALD && arcTheme.spec.isGlass
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDarkArc),
+            .glassmorphicCard(theme = arcTheme, isDark = isDarkArc)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDarkArc)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -259,23 +259,6 @@ fun HeroGokKubbeCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = if (isGlassArc) {
-                            listOf(
-                                Color.White.copy(alpha = if (isDarkArc) 0.08f else 0.22f),
-                                themeColors.primaryContainer.copy(alpha = if (isDarkArc) 0.18f else 0.15f),
-                                Color.Transparent
-                            )
-                        } else {
-                            listOf(
-                                themeColors.primaryContainer.copy(alpha = if (isDarkArc) 0.55f else 0.45f),
-                                MaterialTheme.colorScheme.surface,
-                                themeColors.surfaceVariant.copy(alpha = if (isDarkArc) 0.45f else 0.35f)
-                            )
-                        }
-                    )
-                )
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -618,9 +601,10 @@ fun EzanVaktiTimelineRulerCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDark),
+            .glassmorphicCard(theme = arcTheme, isDark = isDark)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDark)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1123,9 +1107,10 @@ fun EzanVaktiDialCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDark),
+            .glassmorphicCard(theme = arcTheme, isDark = isDark)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDark)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1410,9 +1395,10 @@ fun EzanVaktiDigitalClockCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDark),
+            .glassmorphicCard(theme = arcTheme, isDark = isDark)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDark)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1624,9 +1610,10 @@ fun EzanVaktiSunOrbitCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDark),
+            .glassmorphicCard(theme = arcTheme, isDark = isDark)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDark)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -1819,9 +1806,10 @@ fun EzanVaktiMinimalistPillCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .glassmorphicCard(theme = arcTheme, isDark = isDark),
+            .glassmorphicCard(theme = arcTheme, isDark = isDark)
+            .frostedGlassBackdrop(shape = arcTheme.cardShape),
         colors = CardDefaults.cardColors(
-            containerColor = glassSurfaceColor(theme = arcTheme, isDark = isDark)
+            containerColor = Color.Transparent
         ),
         shape = arcTheme.cardShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)

@@ -110,8 +110,10 @@ fun SettingsScreen(
             return
         }
         "quran_meal" -> {
+            val activeEditions by viewModel.selectedEditions.collectAsState()
             QuranMealSettingsSubScreen(
-                viewModel = viewModel,
+                activeEditions = activeEditions,
+                onToggleEdition = viewModel::toggleEdition,
                 onBack = { activeSubScreen = null }
             )
             return
@@ -221,12 +223,11 @@ fun SettingsScreen(
 
             item {
                 val activeEditions by viewModel.selectedEditions.collectAsState()
-                val subtitleText = "${activeEditions.size} Meal Aktif Seçili"
                 SettingCategoryRow(
                     icon = Icons.Default.MenuBook,
                     iconTint = Color(0xFF2E7D32),
                     title = strings.quranMealSettingsTitle,
-                    subtitle = subtitleText,
+                    subtitle = "${activeEditions.size} kaynak seçili",
                     onClick = { activeSubScreen = "quran_meal" }
                 )
             }
@@ -541,23 +542,13 @@ private fun LanguageSettingsSubScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuranMealSettingsSubScreen(
-    viewModel: PrayerViewModel,
+internal fun QuranMealSettingsSubScreen(
+    activeEditions: Set<String>,
+    onToggleEdition: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val activeEditions by viewModel.selectedEditions.collectAsState()
-    val availableEditions = remember {
-        listOf(
-            "tr.diyanet" to "Diyanet İşleri Meali",
-            "tr.ozturk" to "Yasar Nuri Öztürk",
-            "tr.yildirim" to "Suat Yıldırım",
-            "tr.vakfi" to "Türkiye Diyanet Vakfı",
-            "tr.golpinarli" to "Abdulbaki Gölpınarlı",
-            "tr.ates" to "Süleyman Ateş",
-            "en.sahih" to "Saheeh International (English)",
-            "ar.alafasy" to "Arapça Orijinal Metin"
-        )
-    }
+    val availableEditions = QuranReadingEditions.choices
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
     Scaffold(
         topBar = {
@@ -574,6 +565,7 @@ private fun QuranMealSettingsSubScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("quran-meal-choices")
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -586,7 +578,7 @@ private fun QuranMealSettingsSubScreen(
         ) {
             item {
                 Text(
-                    text = "Aşağıdaki meal ve tefsir kaynaklarından dilediklerinizi aktif edebilirsiniz:",
+                    text = "Okumak istediğiniz kaynakları seçin. Seçili mealler çevrimdışı açılır.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -604,7 +596,8 @@ private fun QuranMealSettingsSubScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { viewModel.toggleEdition(key) }
+                        .then(Modifier.testTag("quran-edition-$key"))
+                        .clickable { onToggleEdition(key) }
                 ) {
                     Row(
                         modifier = Modifier
@@ -617,13 +610,19 @@ private fun QuranMealSettingsSubScreen(
                             text = label,
                             fontSize = 14.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
                         )
                         Checkbox(
                             checked = isSelected,
-                            onCheckedChange = { viewModel.toggleEdition(key) }
+                            onCheckedChange = { onToggleEdition(key) }
                         )
                     }
+                }
+            }
+            item {
+                TextButton(onClick = { uriHandler.openUri("https://tanzil.net/trans/") }) {
+                    Text("Tanzil kaynakları ve güncellemeler")
                 }
             }
         }
@@ -638,11 +637,11 @@ internal fun AboutSubScreen(
     val context = LocalContext.current
     var showLicenses by remember { mutableStateOf(false) }
     val notices = remember(context) {
-        listOf("NOTICE.txt", "LICENSE-CC-BY-SA-4.0.txt", "MODEL-NOTICE.txt")
-            .mapNotNull { filename ->
+        listOf("quran_search/NOTICE.txt", "quran_search/LICENSE-CC-BY-SA-4.0.txt", "quran_search/MODEL-NOTICE.txt", "quran_reading/NOTICE.txt")
+            .mapNotNull { assetPath ->
                 runCatching {
-                    context.assets.open("quran_search/$filename").bufferedReader(Charsets.UTF_8).use { it.readText() }
-                }.getOrNull()?.takeIf { it.isNotBlank() }?.let { "$filename\n\n$it" }
+                    context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                }.getOrNull()?.takeIf { it.isNotBlank() }?.let { "${assetPath.substringAfterLast('/')}\n\n$it" }
             }.joinToString("\n\n──────────\n\n")
     }
     if (showLicenses) {
@@ -714,7 +713,7 @@ internal fun AboutSubScreen(
                 }
             }
             Text(
-                "Kur’an metni: Tanzil · Türkçe meal: QuranEnc (Rowwad)",
+                "Kur’an metni: Tanzil · Seçilebilir mealler ve Türkçe okunuş: çevrimdışı",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

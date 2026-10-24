@@ -4,14 +4,25 @@ import android.Manifest
 import android.app.Application
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
+import com.example.ui.FloatingNavigationScaffold
 import com.example.ui.ThemeGalleryScreen
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.MyApplicationTheme
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -38,6 +49,7 @@ class StepReportScreenshotTest {
         store = StepStore.get(app)
         store.writableDatabase.delete("daily_steps", null, null)
         store.writableDatabase.delete("body_profiles", null, null)
+        store.writableDatabase.delete("walking_sessions", null, null)
         store.resetBaseline()
         for (offset in 6 downTo 0) {
             val day = WalkingDates.shift(StepStore.dayKey(), ReportPeriod.DAY, -offset)
@@ -48,8 +60,18 @@ class StepReportScreenshotTest {
         File("build/step-reports").mkdirs()
     }
 
-    private fun show(dark: Boolean, theme: AppTheme = AppTheme.DEFAULT) {
-        compose.setContent { MyApplicationTheme(darkTheme = dark, appTheme = theme) { StepReportScreen {} } }
+    private fun show(dark: Boolean, theme: AppTheme = AppTheme.DEFAULT, fontScale: Float = 1f) {
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                MyApplicationTheme(darkTheme = dark, appTheme = theme) {
+                    FloatingNavigationScaffold(
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        imeInsets = WindowInsets(0, 0, 0, 0),
+                        bottomBar = { Box(Modifier.fillMaxWidth().height(88.dp)) }
+                    ) { StepReportScreen {} }
+                }
+            }
+        }
         compose.waitUntil(10_000) { compose.onAllNodes(hasText("6.200")).fetchSemanticsNodes().isNotEmpty() }
     }
 
@@ -73,7 +95,7 @@ class StepReportScreenshotTest {
         compose.onNodeWithText("163").assertExists()
         compose.onRoot().captureRoboImage("build/step-reports/daily-light.png")
         selectReport(ReportPeriod.WEEK)
-        compose.waitUntil(10_000) { compose.onAllNodes(hasText("Aktif gün")).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodes(hasText("Aktif gün:", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         compose.onRoot().captureRoboImage("build/step-reports/weekly-light.png")
         selectReport(ReportPeriod.MONTH)
         compose.onRoot().captureRoboImage("build/step-reports/monthly-light.png")
@@ -100,6 +122,37 @@ class StepReportScreenshotTest {
         compose.onRoot().captureRoboImage("build/step-reports/daily-dark-compact.png")
         compose.onNodeWithContentDescription("Yürüyüş profili").performClick()
         compose.onAllNodes(isRoot()).onLast().captureRoboImage("build/step-reports/profile-dark-compact.png")
+    }
+
+    @Test @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun largeTextStaysReadableAndFinalControlClearsFloatingNavigation() {
+        show(true, AppTheme.KUBBELI_SAFIR, fontScale = 1.6f)
+        compose.onNodeWithText("Tahmini mesafe").assertExists()
+        compose.onRoot().captureRoboImage("build/step-reports/daily-dark-large-text.png")
+        compose.onNodeWithTag("step-report-list").performScrollToIndex(6)
+        compose.onNodeWithTag("walking-session-start").assertIsDisplayed()
+        val button = compose.onNodeWithTag("walking-session-start").getUnclippedBoundsInRoot()
+        val navigation = compose.onNodeWithTag("app-bottom-navigation").getUnclippedBoundsInRoot()
+        val viewport = compose.onNodeWithTag("app-content-viewport").getUnclippedBoundsInRoot()
+        assertTrue("Last walking action must clear the floating navigation", button.bottom <= navigation.top)
+        assertTrue("Large text action must stay inside the narrow viewport", button.left >= viewport.left && button.right <= viewport.right)
+        compose.onRoot().captureRoboImage("build/step-reports/daily-dark-large-text-end.png")
+        compose.onNodeWithContentDescription("Yürüyüş profili").performClick()
+        compose.onAllNodes(isRoot()).onLast().captureRoboImage("build/step-reports/profile-dark-large-text.png")
+    }
+
+    @Test fun simplifiedReportKeepsWalkingControlsWithoutReligiousComparisons() {
+        show(false)
+        compose.onNodeWithText("Su desteği & Bereket").assertDoesNotExist()
+        compose.onNodeWithText("Camiye Yürüyüş").assertDoesNotExist()
+        compose.onNodeWithText("Yürüyüş Serisi Başlat").assertDoesNotExist()
+        compose.onNodeWithTag("step-report-list").performScrollToIndex(6)
+        compose.onNodeWithText("Yürüyüşü başlat").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("step-report-list").performScrollToIndex(6)
+        compose.onNodeWithText("Duraklat").assertExists()
+        compose.onNodeWithText("Kaydet").assertIsDisplayed().performClick()
+        compose.waitUntil(10_000) { store.sessions().isNotEmpty() }
+        assertEquals("Yürüyüş", store.sessions().first().title)
     }
 
     @Test @Config(qualifiers = "w600dp-h900dp-xhdpi")

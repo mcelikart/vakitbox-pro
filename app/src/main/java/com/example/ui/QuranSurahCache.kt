@@ -4,18 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 
 /**
- * In-memory cache of downloaded surahs, keyed by surah id plus the set of
- * active editions.
- *
- * Why this exists: opening the Quran reader used to issue six or seven serial
- * HTTP requests (Arabic, transliteration, then one per active meal) and then
- * regex-parse 286 verses on the main thread. The screen looked frozen for
- * several seconds. Fetching is now parallel and parsing is off the main
- * dispatcher, and this cache removes the network cost entirely on a second
- * visit.
- *
- * Scope is deliberately a single screen session: a process-lifetime cache would
- * pin the full text of every surah the user ever opened in memory.
+ * Small screen-session cache of parsed, bundled surahs. Reader text is loaded
+ * from local assets, independently of network services and the search model.
  */
 class QuranSurahCache(private val maxEntries: Int = 6) {
     private data class Key(val surahId: Int, val editions: List<String>)
@@ -26,11 +16,11 @@ class QuranSurahCache(private val maxEntries: Int = 6) {
     }
 
     @Synchronized
-    fun get(surahId: Int, editions: List<String>): List<SurahVerse>? = entries[Key(surahId, editions)]
+    fun get(surahId: Int, editions: List<String>): List<SurahVerse>? = entries[Key(surahId, editions.toList())]
 
     @Synchronized
     fun put(surahId: Int, editions: List<String>, verses: List<SurahVerse>) {
-        entries[Key(surahId, editions)] = verses
+        entries[Key(surahId, editions.toList())] = verses
     }
 
     @Synchronized

@@ -1,0 +1,88 @@
+{
+  "source": "Tanzil.net",
+  "termsUrl": "https://tanzil.net/trans/",
+  "format": "6236 original text strings in Quran ayah order, 1:1 through 114:6",
+  "editions": [
+    {
+      "id": "tr.diyanet",
+      "name": "Diyanet İşleri",
+      "url": "https://tanzil.net/trans/tr.diyanet",
+      "ayahCount": 6236,
+      "sourceSha256": "a9be7b4f291d8cf6f72dbd22dbc4b58f4716c137e56dbdc562aee3fc8c4bc4af",
+      "assetSha256": "168a9b846bcc164862e00560332d9a65b82d4fa9974c4a4716dfd6ddee3153cd",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Diyanet İşleri\n#  Translator: Diyanet Isleri\n#  Language: Turkish\n#  ID: tr.diyanet\n#  Last Update: December 27, 2011\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.ozturk",
+      "name": "Yaşar Nuri Öztürk",
+      "url": "https://tanzil.net/trans/tr.ozturk",
+      "ayahCount": 6236,
+      "sourceSha256": "2b9174cd7a962926a569ed64774556c94967d8c91bb76ffbee001eb493baf41c",
+      "assetSha256": "52b6f4f3c962e0586d59587e8b740f0ebd1a61e0cd063ba908f651fcc4142e50",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Öztürk\n#  Translator: Yasar Nuri Ozturk\n#  Language: Turkish\n#  ID: tr.ozturk\n#  Last Update: June 4, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.yildirim",
+      "name": "Suat Yıldırım",
+      "url": "https://tanzil.net/trans/tr.yildirim",
+      "ayahCount": 6236,
+      "sourceSha256": "4c8513c686b06e18d7c7513f3be56a45e4859d6e45710facea320a30d7b24428",
+      "assetSha256": "d2f7a0fd96f4bcf7b26e4204df8ce3d24023521aa44708a3aec7e4e92c6ab655",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Suat Yıldırım\n#  Translator: Suat Yildirim\n#  Language: Turkish\n#  ID: tr.yildirim\n#  Last Update: September 14, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.vakfi",
+      "name": "Türkiye Diyanet Vakfı",
+      "url": "https://tanzil.net/trans/tr.vakfi",
+      "ayahCount": 6236,
+      "sourceSha256": "240672aaf33d7d872b5f97edcd12e24940699ed3acc98e33fab0d737a7068234",
+      "assetSha256": "3f7a445fe10f7864bfee3146a476d0cd17b388c56df20890a8ba9b795041a635",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Diyanet Vakfı\n#  Translator: Diyanet Vakfi\n#  Language: Turkish\n#  ID: tr.vakfi\n#  Last Update: June 4, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.golpinarli",
+      "name": "Abdulbaki Gölpınarlı",
+      "url": "https://tanzil.net/trans/tr.golpinarli",
+      "ayahCount": 6236,
+      "sourceSha256": "a8a25cbb76a4cc6532d6dcf13ec9edda09fd126dad37290668c4d399e5d80f02",
+      "assetSha256": "07712d3df0f7e759a0640a912c675670c5710a5c9598f80c687ff276953f1a42",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Abdulbakî Gölpınarlı\n#  Translator: Abdulbaki Golpinarli\n#  Language: Turkish\n#  ID: tr.golpinarli\n#  Last Update: September 14, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.ates",
+      "name": "Süleyman Ateş",
+      "url": "https://tanzil.net/trans/tr.ates",
+      "ayahCount": 6236,
+      "sourceSha256": "47f391e7b71c690d2ceab8841e859bbad6f4373274decbf4cdc70c3f1a9b39d4",
+      "assetSha256": "8ec9693624640229233cc86104f6dbf410e5e1fe4426e4b661d264ef654befba",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Süleyman Ateş\n#  Translator: Suleyman Ates\n#  Language: Turkish\n#  ID: tr.ates\n#  Last Update: June 4, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.yazir",
+      "name": "Elmalılı Hamdi Yazır",
+      "url": "https://tanzil.net/trans/tr.yazir",
+      "ayahCount": 6236,
+      "sourceSha256": "4c9a6bea6a1a093dde296c60fe22b7c5c06cdaedf808fb052c0589bd9910f926",
+      "assetSha256": "5efbc0fa6ce287bfd1ae539ec2551c1bb0a8afa756e4780c6e02969526a33e74",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Elmalılı Hamdi Yazır\n#  Translator: Elmalili Hamdi Yazir\n#  Language: Turkish\n#  ID: tr.yazir\n#  Last Update: June 4, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "en.sahih",
+      "name": "Saheeh International",
+      "url": "https://tanzil.net/trans/en.sahih",
+      "ayahCount": 6236,
+      "sourceSha256": "a1778a1a56695d9b59ae910809ec46d9f4a55f05961de51cd56e6ebcf9040883",
+      "assetSha256": "8accfefd319088dd13863fdf96fb789affdf7b6466ad3cb72f575234d655841f",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Saheeh International\n#  Translator: Saheeh International\n#  Language: English\n#  ID: en.sahih\n#  Last Update: April 24, 2011\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    },
+    {
+      "id": "tr.transliteration",
+      "name": "Muhammet Abay — Türkçe Okunuş",
+      "url": "https://tanzil.net/trans/tr.transliteration",
+      "ayahCount": 6236,
+      "sourceSha256": "a4130441fb6c2e8c38510461cbb1588170f593d046680691c99cdb5fb474bb19",
+      "assetSha256": "af1c29a578df3e283e9baaa963182cd93b76c4dd64f3045ded30ee2cb893f71e",
+      "sourceFooter": "# --------------------------------------------------------------------\n#\n#  Quran Translation\n#  Name: Çeviriyazı\n#  Translator: Muhammet Abay\n#  Language: Turkish\n#  ID: tr.transliteration\n#  Last Update: September 15, 2010\n#  Source: Tanzil.net\n#\n# --------------------------------------------------------------------"
+    }
+  ]
+}

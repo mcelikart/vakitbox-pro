@@ -20,7 +20,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitVerticalDragOrCancellation
+import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -31,7 +34,9 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +63,6 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Book
@@ -88,6 +92,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1657,6 +1662,68 @@ fun TesbihBeadSwiper(
         }
     }
 
+    val currentCountState = rememberUpdatedState(count)
+    val currentTargetState = rememberUpdatedState(activeTarget)
+    val incrementCallback = rememberUpdatedState(onIncrement)
+    val decrementCallback = rememberUpdatedState(onDecrement)
+    val density = LocalDensity.current
+    val stepThresholdPx = with(density) { 68.dp.toPx() }
+
+    fun finishDrag() {
+        dragDistancePx = 0f
+        lastTickQuarter = 0
+        scope.launch {
+            thumbPressure.animateTo(0f, tween(180))
+            beadStreamOffset.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = 0.68f, stiffness = 620f)
+            )
+        }
+    }
+
+    fun handleVerticalDrag(dragAmount: Float) {
+        val currentCount = currentCountState.value
+        val target = currentTargetState.value
+        val dragPullRatio = 0.72f
+        dragDistancePx += dragAmount
+        val normalized = (dragDistancePx / stepThresholdPx).coerceIn(-1.15f, 1.15f)
+
+        val quarter = (normalized * 3f).toInt()
+        if (quarter != lastTickQuarter && kotlin.math.abs(quarter) in 1..2) {
+            lastTickQuarter = quarter
+            runCatching { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+        }
+
+        if (dragDistancePx >= stepThresholdPx) {
+            dragDistancePx -= stepThresholdPx
+            lastTickQuarter = 0
+            val nextCount = currentCount + 1
+            previousCount = nextCount
+            val hitTarget = nextCount > 0 && nextCount % target == 0
+            triggerBeadSnapAnimation(
+                direction = -1f,
+                startOffsetFraction = -(1f - dragPullRatio),
+                hitTargetStone = hitTarget
+            )
+            incrementCallback.value()
+        } else if (dragDistancePx <= -stepThresholdPx && currentCount > 0) {
+            dragDistancePx += stepThresholdPx
+            lastTickQuarter = 0
+            previousCount = (currentCount - 1).coerceAtLeast(0)
+            triggerBeadSnapAnimation(
+                direction = 1f,
+                startOffsetFraction = 1f - dragPullRatio,
+                hitTargetStone = false
+            )
+            decrementCallback.value()
+        } else {
+            scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                beadStreamOffset.snapTo(normalized * dragPullRatio)
+                flingEnergy.snapTo(normalized * 0.45f)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1711,88 +1778,47 @@ fun TesbihBeadSwiper(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(390.dp)
+                .height(350.dp)
                 .padding(horizontal = 8.dp)
-                .pointerInput(count, activeTarget) {
-                    val stepThresholdPx = 68.dp.toPx()
-                    val dragPullRatio = 0.72f
-                    detectVerticalDragGestures(
-                        onDragStart = {
+                .testTag("tesbih-pull-area")
+                .pointerInput(activeTarget, stepThresholdPx) {
+                    val pageScrollGutterPx = 72.dp.toPx()
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        if (down.position.x < pageScrollGutterPx) {
+                            // Keep a full-height, easy-to-reach strip available to the parent LazyColumn.
+                            return@awaitEachGesture
+                        }
+
+                        var dragStarted = false
+                        val firstDrag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                            dragStarted = true
                             dragDistancePx = 0f
                             lastTickQuarter = 0
                             scope.launch { thumbPressure.animateTo(0.85f, tween(90)) }
-                        },
-                        onDragEnd = {
-                            dragDistancePx = 0f
-                            lastTickQuarter = 0
-                            scope.launch {
-                                thumbPressure.animateTo(0f, tween(180))
-                                beadStreamOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 620f)
-                                )
-                            }
-                        },
-                        onDragCancel = {
-                            dragDistancePx = 0f
-                            lastTickQuarter = 0
-                            scope.launch {
-                                thumbPressure.animateTo(0f, tween(180))
-                                beadStreamOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 620f)
-                                )
-                            }
-                        },
-                        onVerticalDrag = { change, dragAmount ->
                             change.consume()
-                            dragDistancePx += dragAmount
-                            val normalized = (dragDistancePx / stepThresholdPx).coerceIn(-1.15f, 1.15f)
+                            handleVerticalDrag(overSlop)
+                        }
 
-                            // Subtle micro-friction tick as the bead is pulled across the thumb pad
-                            val quarter = (normalized * 3f).toInt()
-                            if (quarter != lastTickQuarter && kotlin.math.abs(quarter) in 1..2) {
-                                lastTickQuarter = quarter
-                                runCatching {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        if (firstDrag == null) {
+                            if (dragStarted) finishDrag()
+                        } else {
+                            var pointerId = firstDrag.id
+                            while (true) {
+                                val change = awaitVerticalDragOrCancellation(pointerId)
+                                if (change == null || !change.pressed) {
+                                    finishDrag()
+                                    break
                                 }
-                            }
-
-                            if (dragDistancePx >= stepThresholdPx) {
-                                // Pulled downward -> advance bead seamlessly from where the drag reached!
-                                dragDistancePx -= stepThresholdPx
-                                lastTickQuarter = 0
-                                val nextCount = count + 1
-                                previousCount = nextCount
-                                val hitTarget = nextCount > 0 && nextCount % activeTarget == 0
-                                // Before increment, bead (count + 1) was at i = 1 with continuousIndex = 1 - dragPullRatio = +0.28f.
-                                // After increment, that same bead is i = 0, so startOffsetFraction = -(1f - dragPullRatio) = -0.28f keeps it at +0.28f!
-                                triggerBeadSnapAnimation(
-                                    direction = -1f,
-                                    startOffsetFraction = -(1f - dragPullRatio),
-                                    hitTargetStone = hitTarget
-                                )
-                                onIncrement()
-                            } else if (dragDistancePx <= -stepThresholdPx && count > 0) {
-                                // Pushed upward -> return bead seamlessly from where the drag reached!
-                                dragDistancePx += stepThresholdPx
-                                lastTickQuarter = 0
-                                val prevCount = (count - 1).coerceAtLeast(0)
-                                previousCount = prevCount
-                                triggerBeadSnapAnimation(
-                                    direction = 1f,
-                                    startOffsetFraction = (1f - dragPullRatio),
-                                    hitTargetStone = false
-                                )
-                                onDecrement()
-                            } else {
-                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
-                                    beadStreamOffset.snapTo(normalized * dragPullRatio)
-                                    flingEnergy.snapTo(normalized * 0.45f)
+                                val dragAmount = change.positionChange().y
+                                if (dragAmount != 0f) {
+                                    change.consume()
+                                    handleVerticalDrag(dragAmount)
                                 }
+                                pointerId = change.id
                             }
                         }
-                    )
+                    }
                 }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -2380,8 +2406,8 @@ fun TesbihBeadSwiper(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "↕ Habbeyi aşağı çekin\nveya dokunun",
-                    fontSize = 11.sp,
+                    text = "Tesbihte çekin / dokunun\nSayfa için sol kenarı kaydırın",
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
                     lineHeight = 14.sp

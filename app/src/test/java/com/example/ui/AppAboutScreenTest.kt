@@ -26,11 +26,13 @@ class AppAboutScreenTest {
         compose.setContent { MyApplicationTheme { AboutSubScreen(onBack = {}) } }
         compose.onNodeWithText("VakitBox Pro").assertIsDisplayed()
         compose.onNodeWithText("Sürüm ${BuildConfig.VERSION_NAME} • Yapı ${BuildConfig.VERSION_CODE}").assertIsDisplayed()
-        compose.onNodeWithText("Kur’an metni: Tanzil · Türkçe meal: QuranEnc (Rowwad)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kur’an metni: Tanzil · Seçilebilir mealler ve Türkçe okunuş: çevrimdışı").performScrollTo().assertIsDisplayed()
         File("build/quran-index-scenes").mkdirs()
         compose.onRoot().captureRoboImage("build/quran-index-scenes/about.png")
         compose.onNodeWithText("Kaynaklar ve lisanslar").performClick()
         compose.onNodeWithText("intfloat/multilingual-e5-small", substring = true).assertExists()
+        compose.onNodeWithText("Diyanet İşleri", substring = true).assertExists()
+        compose.onNodeWithText("https://tanzil.net/trans/", substring = true).assertExists()
         compose.onNodeWithText("Kapat").performClick()
     }
 
