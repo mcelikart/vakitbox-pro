@@ -26,6 +26,8 @@ class SunriseAlarmRingingService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var state: SunriseAlarmRingingState
     private lateinit var audio: SunriseAlarmAudio
+    private lateinit var flipGesture: SunriseAlarmFlipGesture
+    private var audioToken: String? = null
     private var foreground = false
     private var wakeLock: PowerManager.WakeLock? = null
     private var wakeDeadline = 0L
@@ -39,6 +41,13 @@ class SunriseAlarmRingingService : Service() {
         super.onCreate()
         state = SunriseAlarmRingingState(this)
         audio = SunriseAlarmAudio(this)
+        flipGesture = SunriseAlarmFlipGesture(this) {
+            state.list().firstOrNull { it.expiresAtMillis > System.currentTimeMillis() }?.let {
+                if (!SunriseAlarmScheduler.snooze(this, it.delivery.token)) {
+                    Toast.makeText(this, "Alarm ertelenemedi. Alarm iznini kontrol edin.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         state.registerListener(listener)
         createChannel(this)
     }
@@ -47,7 +56,7 @@ class SunriseAlarmRingingService : Service() {
         val token = intent?.getStringExtra(EXTRA_TOKEN)
         when (intent?.action) {
             ACTION_DISMISS -> if (token != null) SunriseAlarmScheduler.dismiss(this, token)
-            ACTION_SNOOZE -> if (token != null && !SunriseAlarmScheduler.snooze(this, token, SNOOZE_MINUTES)) {
+            ACTION_SNOOZE -> if (token != null && !SunriseAlarmScheduler.snooze(this, token)) {
                 Toast.makeText(this, "Alarm ertelenemedi. Alarm iznini kontrol edin.", Toast.LENGTH_LONG).show()
             }
         }
@@ -71,6 +80,8 @@ class SunriseAlarmRingingService : Service() {
         elapsedDeadlines.keys.retainAll(records.map { it.delivery.token }.toSet())
         if (records.isEmpty()) {
             audio.stop()
+            audioToken = null
+            flipGesture.stop()
             releaseWakeLock()
             if (foreground) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -87,11 +98,18 @@ class SunriseAlarmRingingService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
             foreground = true
-            // Android 15 permits alarm audio focus only after foreground entry.
-            audio.start()
         } else {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, notification)
         }
+        val first = records.first()
+        if (audioToken != first.delivery.token) {
+            audio.stop()
+            flipGesture.stop()
+            // Android 15 permits alarm audio focus only after foreground entry.
+            audio.start(first.settings)
+            audioToken = first.delivery.token
+        }
+        if (first.settings.flipToSnooze) flipGesture.start() else flipGesture.stop()
         val lastDeadline = records.maxOf { elapsedDeadlines.getValue(it.delivery.token) }
         keepCpuAwake(lastDeadline, elapsedNow)
         val delay = records.minOf { record ->
@@ -124,6 +142,7 @@ class SunriseAlarmRingingService : Service() {
         state.unregisterListener(listener)
         handler.removeCallbacksAndMessages(null)
         audio.stop()
+        flipGesture.stop()
         releaseWakeLock()
         super.onDestroy()
     }
@@ -206,7 +225,7 @@ class SunriseAlarmRingingService : Service() {
                 .setGroupSummary(false)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
                 .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-                .addAction(0, "$SNOOZE_MINUTES dk ertele", notificationAction(context, SunriseAlarmReceiver.ACTION_SNOOZE, current.delivery.token))
+                .addAction(0, "${current.settings.snoozeMinutes} dk ertele", notificationAction(context, SunriseAlarmReceiver.ACTION_SNOOZE, current.delivery.token))
                 .addAction(0, "Kapat", notificationAction(context, SunriseAlarmReceiver.ACTION_DISMISS, current.delivery.token))
                 .build().apply { flags = flags or Notification.FLAG_NO_CLEAR }
         }

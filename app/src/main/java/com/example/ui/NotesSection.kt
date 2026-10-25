@@ -1,9 +1,10 @@
 package com.example.ui
 
 import android.content.ClipData
-import android.content.ActivityNotFoundException
 import android.content.ClipboardManager
 import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -69,6 +70,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import androidx.core.content.ContextCompat
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.LocalAppTheme
 import com.example.ui.theme.LocalThemeIsDark
@@ -129,6 +131,15 @@ private val UserNoteStateSaver = Saver<UserNote?, String>(
     }
 )
 
+internal data class NoteCategoryRenameResult(
+    val categories: List<String>,
+    private val previousName: String,
+    val acceptedName: String?
+) {
+    fun selectionAfter(currentSelection: String?): String? =
+        if (currentSelection == previousName && acceptedName != null) acceptedName else currentSelection
+}
+
 object NotesStore {
     private const val PREF_NAME = "user_notes_prefs"
     private const val KEY_NOTES_JSON = "notes_json_v1"
@@ -181,19 +192,24 @@ object NotesStore {
         return current
     }
 
-    fun renameCategory(context: Context, oldName: String, newName: String): List<String> {
+    fun renameCategory(context: Context, oldName: String, newName: String): List<String> =
+        renameCategoryWithResult(context, oldName, newName).categories
+
+    internal fun renameCategoryWithResult(context: Context, oldName: String, newName: String): NoteCategoryRenameResult {
         val trimmed = newName.trim()
         val current = loadCategories(context).toMutableList()
         val index = current.indexOf(oldName)
-        if (index < 0 || trimmed.isEmpty() || trimmed.equals("Tümü", ignoreCase = true)) return current
-        if (current.withIndex().any { it.index != index && it.value.equals(trimmed, ignoreCase = true) }) return current
+        if (index < 0 || trimmed.isEmpty() || trimmed.equals("Tümü", ignoreCase = true) ||
+            current.withIndex().any { it.index != index && it.value.equals(trimmed, ignoreCase = true) }) {
+            return NoteCategoryRenameResult(current, oldName, acceptedName = null)
+        }
         current[index] = trimmed
         saveCategories(context, current)
         val notes = loadNotes(context)
         if (notes.any { it.category == oldName }) {
             saveNotes(context, notes.map { if (it.category == oldName) it.copy(category = trimmed) else it })
         }
-        return current
+        return NoteCategoryRenameResult(current, oldName, acceptedName = trimmed)
     }
 
     fun deleteCategory(context: Context, name: String): List<String> {
@@ -467,7 +483,7 @@ fun CategoryPickerBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Kategori Seç",
+                    text = "Klasörler",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = Color(0xFF2B1B0E)
@@ -486,7 +502,7 @@ fun CategoryPickerBottomSheet(
                 OutlinedTextField(
                     value = newCategoryName,
                     onValueChange = { newCategoryName = it },
-                    placeholder = { Text("Yeni kategori ekle...", fontSize = 13.sp) },
+                    placeholder = { Text("Yeni klasör…", fontSize = 13.sp) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -518,7 +534,7 @@ fun CategoryPickerBottomSheet(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Kategori Ekle",
+                            contentDescription = "Klasör ekle",
                             tint = Color(0xFFFFF8EE),
                             modifier = Modifier.size(20.dp)
                         )
@@ -607,6 +623,7 @@ fun CategoryPickerBottomSheet(
                                     cursorBrush = SolidColor(Color(0xFF8C5319)),
                                     modifier = Modifier
                                         .weight(1f)
+                                        .testTag("notes-rename-folder-name")
                                         .background(Color(0xFFFBF5E9), RoundedCornerShape(8.dp))
                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                 )
@@ -622,7 +639,7 @@ fun CategoryPickerBottomSheet(
                                         clean.isNotEmpty() && !clean.equals("Tümü", ignoreCase = true) &&
                                             categories.none { it != cat && it.equals(clean, ignoreCase = true) }
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(32.dp).testTag("notes-rename-folder-save")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
@@ -752,82 +769,67 @@ private fun NoteCategoryDeleteDialog(category: String, onDismiss: () -> Unit, on
 }
 
 @Composable
-internal fun NotesCategoryList(
+internal fun NotesFolderList(
     categories: List<String>,
     notes: List<UserNote>,
-    selectedCategory: String,
-    onSelectCategory: (String) -> Unit,
+    onOpenFolder: (String) -> Unit,
     onAddCategory: (String) -> Unit,
-    onDeleteCategory: (String) -> Unit,
     onManageCategories: () -> Unit,
     isWarmPaperStyle: Boolean = true
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf("") }
-    var categoryToDelete by remember { mutableStateOf<String?>(null) }
-    val visibleCategories = (categories + notes.map { it.category }).distinct().filter { it != "Tümü" }
-    val activeBg = if (isWarmPaperStyle) Color(0xFF8C5319) else MaterialTheme.colorScheme.primary
-    val activeContent = if (isWarmPaperStyle) Color(0xFFFFF8EE) else MaterialTheme.colorScheme.onPrimary
-    val inactiveBg = if (isWarmPaperStyle) Color(0xFFF3E4C8) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-    val inactiveContent = if (isWarmPaperStyle) Color(0xFF2B1B0E) else MaterialTheme.colorScheme.onSurface
-
-    Column(Modifier.fillMaxWidth().testTag("notes-categories-list"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var newName by rememberSaveable { mutableStateOf("") }
+    val folders = (listOf("Tümü", NotesStore.UNCATEGORIZED) + categories + notes.map { it.category }).distinct()
+    val background = if (isWarmPaperStyle) Color(0xFFF3E4C8) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    val ink = if (isWarmPaperStyle) Color(0xFF2B1B0E) else MaterialTheme.colorScheme.onSurface
+    Column(Modifier.fillMaxWidth().testTag("notes-folders"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Kategoriler", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = inactiveContent)
-            IconButton(onClick = { newName = ""; showAddDialog = true }, modifier = Modifier.testTag("notes-add-category")) {
-                Icon(Icons.Default.Add, contentDescription = "Kategori ekle", tint = inactiveContent)
+            Text("Klasörler", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = ink)
+            IconButton(onClick = { newName = ""; showAddDialog = true }, modifier = Modifier.testTag("notes-add-folder")) {
+                Icon(Icons.Default.CreateNewFolder, contentDescription = "Klasör ekle", tint = ink)
             }
-            IconButton(onClick = onManageCategories) {
-                Icon(Icons.Default.Edit, contentDescription = "Kategorileri düzenle", tint = inactiveContent)
+            IconButton(onClick = onManageCategories, modifier = Modifier.testTag("notes-manage-folders")) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Klasörleri yönet", tint = ink)
             }
         }
-        (listOf("Tümü") + visibleCategories).forEach { name ->
-            val selected = selectedCategory == name
+        folders.forEach { name ->
             val count = if (name == "Tümü") notes.size else notes.count { it.category == name }
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = if (selected) activeBg else inactiveBg,
-                modifier = Modifier.fillMaxWidth().testTag("notes-category-$name").clickable { onSelectCategory(name) }
+                shape = RoundedCornerShape(14.dp), color = background,
+                modifier = Modifier.fillMaxWidth().testTag("notes-folder-$name").clickable { onOpenFolder(name) }
             ) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, modifier = Modifier.weight(1f).padding(vertical = 10.dp), fontSize = 14.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) activeContent else inactiveContent)
-                    Text("$count", fontSize = 12.sp, color = if (selected) activeContent else inactiveContent,
-                        modifier = Modifier.padding(horizontal = 12.dp))
-                    if (name != "Tümü" && name != NotesStore.UNCATEGORIZED) {
-                        IconButton(onClick = { categoryToDelete = name }, modifier = Modifier.testTag("notes-delete-category-$name")) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "$name kategorisini sil",
-                                tint = if (selected) activeContent else inactiveContent, modifier = Modifier.size(20.dp))
-                        }
-                    }
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(if (name == "Tümü") Icons.Default.FolderCopy else Icons.Default.Folder,
+                        contentDescription = null, tint = ink.copy(alpha = 0.75f), modifier = Modifier.size(24.dp))
+                    Text(name, modifier = Modifier.weight(1f), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = ink)
+                    Text("$count", fontSize = 13.sp, color = ink.copy(alpha = 0.7f))
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ink.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                 }
             }
         }
     }
     if (showAddDialog) {
         val clean = newName.trim()
-        val valid = clean.isNotEmpty() && !clean.equals("Tümü", ignoreCase = true) && visibleCategories.none { it.equals(clean, ignoreCase = true) }
+        val valid = clean.isNotEmpty() && folders.none { it.equals(clean, ignoreCase = true) }
         AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Kategori ekle") },
-            text = {
-                OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Kategori adı") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth().testTag("notes-new-category-name"))
-            },
-            confirmButton = {
-                TextButton(onClick = { onAddCategory(clean); onSelectCategory(clean); showAddDialog = false },
-                    enabled = valid, modifier = Modifier.testTag("notes-save-category")) { Text("Ekle") }
-            },
+            onDismissRequest = { showAddDialog = false }, title = { Text("Klasör ekle") },
+            text = { OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Klasör adı") },
+                singleLine = true, modifier = Modifier.fillMaxWidth().testTag("notes-new-folder-name")) },
+            confirmButton = { TextButton(onClick = { onAddCategory(clean); showAddDialog = false }, enabled = valid,
+                modifier = Modifier.testTag("notes-save-folder")) { Text("Ekle") } },
             dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("Vazgeç") } }
         )
     }
-    categoryToDelete?.let { name ->
-        NoteCategoryDeleteDialog(name, onDismiss = { categoryToDelete = null }, onConfirm = {
-            onDeleteCategory(name)
-            if (selectedCategory == name) onSelectCategory("Tümü")
-            categoryToDelete = null
-        })
+}
+
+@Composable
+private fun NoteFolderBreadcrumb(folder: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack, modifier = Modifier.testTag("notes-back-to-folders")) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Klasörlere dön")
+        }
+        Text(folder, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, maxLines = 2)
     }
 }
 
@@ -848,10 +850,11 @@ fun ToolsNotesSection(
     var showFullScreenNotebook by rememberSaveable { mutableStateOf(false) }
     var editingNote by rememberSaveable(stateSaver = UserNoteStateSaver) { mutableStateOf<UserNote?>(null) }
     var isCreatingNewNote by rememberSaveable { mutableStateOf(false) }
+    var newNoteCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showCategoryDialog by remember { mutableStateOf(false) }
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedCategory by rememberSaveable { mutableStateOf("Tümü") }
+    var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(isExpanded, showFullScreenNotebook) {
         notes = NotesStore.loadNotes(context)
@@ -1032,6 +1035,7 @@ fun ToolsNotesSection(
                         .clip(buttonShape)
                         .clickable {
                             editingNote = null
+                            newNoteCategory = selectedCategory?.takeUnless { it == "Tümü" }
                             isCreatingNewNote = true
                         }
                 ) {
@@ -1103,20 +1107,15 @@ fun ToolsNotesSection(
                         .padding(top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    NotesCategoryList(
-                        categories = userCategories,
-                        notes = notes,
-                        selectedCategory = selectedCategory,
-                        onSelectCategory = { selectedCategory = it },
-                        onAddCategory = { userCategories = NotesStore.addCategory(context, it) },
-                        onDeleteCategory = {
-                            userCategories = NotesStore.deleteCategory(context, it)
-                            notes = NotesStore.loadNotes(context)
-                        },
-                        onManageCategories = { showCategoryDialog = true },
-                        isWarmPaperStyle = false
-                    )
-
+                    if (selectedCategory == null) {
+                        NotesFolderList(
+                            categories = userCategories, notes = notes,
+                            onOpenFolder = { selectedCategory = it },
+                            onAddCategory = { userCategories = NotesStore.addCategory(context, it) },
+                            onManageCategories = { showCategoryDialog = true }, isWarmPaperStyle = false
+                        )
+                    } else {
+                        NoteFolderBreadcrumb(selectedCategory.orEmpty(), onBack = { selectedCategory = null })
                     if (filteredNotes.isEmpty()) {
                         Box(
                             modifier = Modifier
@@ -1156,6 +1155,7 @@ fun ToolsNotesSection(
                             )
                         }
                     }
+                    }
                 }
             }
         }
@@ -1164,21 +1164,22 @@ fun ToolsNotesSection(
     if (showCategoryDialog) {
         CategoryPickerBottomSheet(
             categories = userCategories,
-            selectedCategory = selectedCategory,
-            includeAllOption = true,
-            onSelectCategory = { selectedCategory = it },
+            selectedCategory = selectedCategory.orEmpty(),
+            includeAllOption = false,
+            onSelectCategory = {},
             onAddCategory = { newCat ->
                 userCategories = NotesStore.addCategory(context, newCat)
             },
             onRenameCategory = { oldCat, newCat ->
-                userCategories = NotesStore.renameCategory(context, oldCat, newCat)
+                val renamed = NotesStore.renameCategoryWithResult(context, oldCat, newCat)
+                userCategories = renamed.categories
                 notes = NotesStore.loadNotes(context)
-                if (selectedCategory == oldCat) selectedCategory = newCat
+                selectedCategory = renamed.selectionAfter(selectedCategory)
             },
             onDeleteCategory = { delCat ->
                 userCategories = NotesStore.deleteCategory(context, delCat)
                 notes = NotesStore.loadNotes(context)
-                if (selectedCategory == delCat) selectedCategory = "Tümü"
+                if (selectedCategory == delCat) selectedCategory = null
             },
             onDismiss = { showCategoryDialog = false }
         )
@@ -1199,7 +1200,8 @@ fun ToolsNotesSection(
             onLaunchImport = {
                 importLauncher.launch(arrayOf("text/*", "application/octet-stream"))
             },
-            onOpenNoteEditor = { noteToEdit ->
+            onOpenNoteEditor = { noteToEdit, folder ->
+                newNoteCategory = folder
                 if (noteToEdit == null) {
                     editingNote = null
                     isCreatingNewNote = true
@@ -1216,6 +1218,7 @@ fun ToolsNotesSection(
         val currentTarget = editingNote
         FullScreenStrawPaperNoteEditor(
             initialNote = currentTarget,
+            initialCategory = newNoteCategory,
             categories = userCategories,
             onCategoriesChanged = {
                 userCategories = NotesStore.loadCategories(context)
@@ -1279,6 +1282,7 @@ private fun NoteTitleListItem(
         shadowElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("note-item-${note.id}")
             .clip(buttonShape)
             .clickable {
                 if (showDeleteAction) {
@@ -1410,6 +1414,7 @@ private fun NoteTitleListItem(
 @Composable
 fun FullScreenStrawPaperNoteEditor(
     initialNote: UserNote?,
+    initialCategory: String? = null,
     categories: List<String> = NotesStore.categories,
     onCategoriesChanged: () -> Unit = {},
     onDismiss: () -> Unit,
@@ -1427,7 +1432,7 @@ fun FullScreenStrawPaperNoteEditor(
         val text = initialNote?.content ?: ""
         mutableStateOf(TextFieldValue(text = text, selection = TextRange(text.length)))
     }
-    var category by rememberSaveable(draftId) { mutableStateOf(initialNote?.category ?: currentCategories.firstOrNull() ?: "Genel") }
+    var category by rememberSaveable(draftId) { mutableStateOf(initialNote?.category ?: initialCategory ?: currentCategories.firstOrNull() ?: "Genel") }
     var isPinned by rememberSaveable(draftId) { mutableStateOf(initialNote?.isPinned ?: false) }
     var paperStyle by rememberSaveable(draftId) {
         mutableStateOf(
@@ -1463,22 +1468,18 @@ fun FullScreenStrawPaperNoteEditor(
         updateContentWithHistory(TextFieldValue(text = newText, selection = TextRange(newCursor)))
     }
 
-    val dictationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = recognizedNoteDictation(result.resultCode, result.data)
-        if (spoken != null) {
-            updateContentWithHistory(insertNoteDictation(contentValue, spoken))
-        } else if (result.resultCode == android.app.Activity.RESULT_OK) {
-            Toast.makeText(context, "Ses anlaşılamadı. Tekrar deneyin.", Toast.LENGTH_SHORT).show()
-        }
+    val dictation = rememberNoteDictationController(contentValue) { value -> updateContentWithHistory(value) }
+    var microphoneMessage by remember { mutableStateOf<String?>(null) }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) { microphoneMessage = null; dictation.start() }
+        else microphoneMessage = "Sesle yazmak için mikrofon izni gerekli."
     }
-    val startDictation: () -> Unit = {
-        try {
-            dictationLauncher.launch(noteDictationIntent())
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, "Bu telefonda sesle yazma kullanılamıyor.", Toast.LENGTH_LONG).show()
-        } catch (_: SecurityException) {
-            Toast.makeText(context, "Sesle yazma başlatılamadı. Telefonun ses girişini kontrol edin.", Toast.LENGTH_LONG).show()
-        }
+    val toggleDictation: () -> Unit = {
+        if (dictation.isActive) dictation.stop()
+        else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            microphoneMessage = null
+            dictation.start()
+        } else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     val inkPrimary = Color(0xFF2B1B0E)
@@ -1488,6 +1489,7 @@ fun FullScreenStrawPaperNoteEditor(
     val accentBronze = Color(0xFF8C5319)
 
     val saveAndClose = {
+        dictation.stop()
         val rawTitle = title.trim()
         val rawBody = contentValue.text.trim()
         if (rawTitle.isEmpty() && rawBody.isEmpty()) {
@@ -1961,6 +1963,7 @@ fun FullScreenStrawPaperNoteEditor(
                         BasicTextField(
                             value = contentValue,
                             onValueChange = { updateContentWithHistory(it) },
+                            readOnly = dictation.isActive,
                             onTextLayout = { bodyLayoutResult = it },
                             textStyle = bodyTextStyle,
                             cursorBrush = SolidColor(accentBronze),
@@ -2001,6 +2004,12 @@ fun FullScreenStrawPaperNoteEditor(
                     border = BorderStroke(1.2.dp, Color(0xFF8C5319).copy(alpha = 0.55f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Column {
+                    val voiceStatus = microphoneMessage ?: dictation.status
+                    if (!voiceStatus.isNullOrBlank()) {
+                        Text(voiceStatus, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("note-voice-status"),
+                            fontSize = 12.sp, color = Color(0xFF4A3219))
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2010,9 +2019,11 @@ fun FullScreenStrawPaperNoteEditor(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         EditorFormatChip(
-                            icon = Icons.Default.Mic,
-                            label = "Sesle yaz",
-                            onClick = startDictation
+                            icon = if (dictation.isActive) Icons.Default.StopCircle else Icons.Default.Mic,
+                            label = if (dictation.isActive) "Durdur" else "Sesle yaz",
+                            tag = "note-format-Sesle yaz",
+                            active = dictation.isActive,
+                            onClick = toggleDictation
                         )
                         EditorFormatChip(
                             icon = Icons.AutoMirrored.Filled.FormatListBulleted,
@@ -2064,6 +2075,7 @@ fun FullScreenStrawPaperNoteEditor(
                             }
                         )
                     }
+                    }
                 }
             }
         }
@@ -2081,8 +2093,9 @@ fun FullScreenStrawPaperNoteEditor(
                 onCategoriesChanged()
             },
             onRenameCategory = { oldCat, newCat ->
-                currentCategories = NotesStore.renameCategory(context, oldCat, newCat)
-                if (category == oldCat) category = newCat
+                val renamed = NotesStore.renameCategoryWithResult(context, oldCat, newCat)
+                currentCategories = renamed.categories
+                category = renamed.selectionAfter(category) ?: category
                 onCategoriesChanged()
             },
             onDeleteCategory = { delCat ->
@@ -2125,14 +2138,16 @@ fun FullScreenStrawPaperNoteEditor(
 private fun EditorFormatChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    tag: String = "note-format-$label",
+    active: Boolean = false,
     onClick: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF6EBD8),
+        color = if (active) Color(0xFF8C5319) else Color(0xFFF6EBD8),
         border = BorderStroke(1.dp, Color(0xFFB68952).copy(alpha = 0.5f)),
         modifier = Modifier
-            .testTag("note-format-$label")
+            .testTag(tag)
             .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() }
     ) {
@@ -2143,7 +2158,7 @@ private fun EditorFormatChip(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = Color(0xFF4A3219),
+                tint = if (active) Color(0xFFFFF8EE) else Color(0xFF4A3219),
                 modifier = Modifier.size(15.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -2151,7 +2166,7 @@ private fun EditorFormatChip(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF2B1B0E)
+                color = if (active) Color(0xFFFFF8EE) else Color(0xFF2B1B0E)
             )
         }
     }
@@ -2164,498 +2179,127 @@ private fun FullScreenNotebookAppModal(
     onCategoriesChanged: () -> Unit,
     onUpdateNotes: (List<UserNote>) -> Unit,
     onLaunchImport: () -> Unit,
-    onOpenNoteEditor: (UserNote?) -> Unit,
+    onOpenNoteEditor: (UserNote?, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedCategory by rememberSaveable { mutableStateOf("Tümü") }
-
-    var showGearSettingsDialog by remember { mutableStateOf(false) }
-    var showCategoryManagerDialog by remember { mutableStateOf(false) }
-    var showClearAllConfirmDialog by remember { mutableStateOf(false) }
-    var noteToDeleteConfirm by remember { mutableStateOf<UserNote?>(null) }
-
-    // 0 = Normal, 1 = Edit, 2 = Delete
-    var managementMode by remember { mutableIntStateOf(0) }
-
-    val filtered = remember(notes, searchQuery, selectedCategory) {
+    var folder by rememberSaveable { mutableStateOf<String?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var showCategoryManager by remember { mutableStateOf(false) }
+    var clearAllConfirm by remember { mutableStateOf(false) }
+    var noteToDelete by remember { mutableStateOf<UserNote?>(null) }
+    var deleteMode by rememberSaveable { mutableStateOf(false) }
+    val filtered = remember(notes, searchQuery, folder) {
         notes.filter { note ->
-            val catMatch = selectedCategory == "Tümü" || note.category == selectedCategory
-            val qMatch = searchQuery.isBlank() ||
-                note.title.contains(searchQuery, ignoreCase = true) ||
-                note.content.contains(searchQuery, ignoreCase = true)
-            catMatch && qMatch
+            (folder == "Tümü" || note.category == folder) && (searchQuery.isBlank() ||
+                note.title.contains(searchQuery, ignoreCase = true) || note.content.contains(searchQuery, ignoreCase = true))
         }
     }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = true
-        )
-    ) {
-        BackHandler {
-            if (managementMode != 0) {
-                managementMode = 0
-            } else {
-                onDismiss()
-            }
+    val back: () -> Unit = {
+        when {
+            deleteMode -> deleteMode = false
+            folder != null -> { folder = null; searchQuery = "" }
+            else -> onDismiss()
         }
-
-        StrawPaperBackground(
-            modifier = Modifier.fillMaxSize(),
-            lineStyle = StrawPaperLineStyle.PLAIN,
-            showMarginLine = false
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding()
-            ) {
-                Surface(
-                    color = Color(0xFFE6D1AE),
-                    shadowElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                IconButton(onClick = onDismiss) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Geri",
-                                        tint = Color(0xFF2B1B0E)
-                                    )
-                                }
-                                Text(
-                                    text = "Not Defteri",
-                                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2B1B0E)
-                                )
+    }
+    Dialog(onDismissRequest = back, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true)) {
+        BackHandler(onBack = back)
+        StrawPaperBackground(modifier = Modifier.fillMaxSize(), lineStyle = StrawPaperLineStyle.PLAIN, showMarginLine = false) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                Surface(color = Color(0xFFE6D1AE), shadowElevation = 3.dp) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = back, modifier = Modifier.testTag(if (folder == null) "notes-exit" else "notes-back-to-folders")) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (folder == null) "Geri" else "Klasörlere dön", tint = Color(0xFF2B1B0E))
                             }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF8C5319),
-                                    modifier = Modifier.clickable { onOpenNoteEditor(null) }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = "Yeni Not",
-                                            tint = Color(0xFFFFF8EE),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Yeni Not",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFF8EE)
-                                        )
-                                    }
+                            Text(folder ?: "Not Defteri", modifier = Modifier.weight(1f), maxLines = 2,
+                                style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif), fontWeight = FontWeight.Bold, color = Color(0xFF2B1B0E))
+                            Box {
+                                IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("notes-overflow")) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Not defteri menüsü", tint = Color(0xFF2B1B0E))
                                 }
-
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (managementMode != 0) Color(0xFFB45309) else Color(0xFFD8BE96),
-                                    border = BorderStroke(1.dp, Color(0xFF8C5319).copy(alpha = 0.45f)),
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clickable { showGearSettingsDialog = true }
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Ayarlar",
-                                            tint = if (managementMode != 0) Color.White else Color(0xFF2B1B0E),
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(text = { Text("Klasörleri yönet") }, onClick = { menuOpen = false; showCategoryManager = true })
+                                    DropdownMenuItem(text = { Text("İçe aktar") }, onClick = { menuOpen = false; onLaunchImport() })
+                                    if (folder != null && filtered.isNotEmpty()) {
+                                        DropdownMenuItem(text = { Text(if (deleteMode) "Silmeyi bitir" else "Not sil") }, onClick = { menuOpen = false; deleteMode = !deleteMode })
+                                    }
+                                    if (notes.isNotEmpty()) {
+                                        DropdownMenuItem(text = { Text("Tüm notları sil") }, onClick = { menuOpen = false; clearAllConfirm = true })
                                     }
                                 }
                             }
                         }
-
-                        AnimatedVisibility(visible = managementMode != 0) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (managementMode == 2) Color(0xFFB91C1C).copy(alpha = 0.14f) else Color(0xFF8C5319).copy(alpha = 0.16f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = if (managementMode == 2) "Silmek için nota dokunun" else "Düzenlemek için nota dokunun",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (managementMode == 2) Color(0xFF991B1B) else Color(0xFF4A3219)
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF2B1B0E),
-                                        modifier = Modifier.clickable { managementMode = 0 }
-                                    ) {
-                                        Text(
-                                            text = "Bitti",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFF8EE),
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { onOpenNoteEditor(null, folder?.takeUnless { it == "Tümü" }) }, modifier = Modifier.testTag("notes-new-note")) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp)); Text("Yeni Not")
+                            }
+                            if (folder != null) {
+                                Text("Not Defteri / ${folder.orEmpty()}", modifier = Modifier.weight(1f), maxLines = 2,
+                                    fontSize = 11.sp, color = Color(0xFF6A4E31))
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = {
-                                Text("Notlarda ara...", color = Color(0xFF6A4E31).copy(alpha = 0.7f), fontSize = 13.sp)
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF5A3E1B), modifier = Modifier.size(18.dp))
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Temizle", tint = Color(0xFF5A3E1B), modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFF7EEDB),
-                                unfocusedContainerColor = Color(0xFFF7EEDB),
-                                focusedBorderColor = Color(0xFF8C5319),
-                                unfocusedBorderColor = Color(0xFFB68952),
-                                focusedTextColor = Color(0xFF2B1B0E),
-                                unfocusedTextColor = Color(0xFF2B1B0E)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                        if (folder != null) {
+                            OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it },
+                                placeholder = { Text("Notlarda ara…") }, singleLine = true, shape = RoundedCornerShape(12.dp),
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                modifier = Modifier.fillMaxWidth().testTag("notes-search"))
+                        }
                     }
                 }
-
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp).testTag("notes-browser-list"),
                     contentPadding = PaddingValues(top = 14.dp, bottom = com.example.ui.theme.navBarBottomPadding(extra = 16.dp)),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    item {
-                        NotesCategoryList(
-                            categories = categories,
-                            notes = notes,
-                            selectedCategory = selectedCategory,
-                            onSelectCategory = { selectedCategory = it },
-                            onAddCategory = { NotesStore.addCategory(context, it); onCategoriesChanged() },
-                            onDeleteCategory = { NotesStore.deleteCategory(context, it); onCategoriesChanged() },
-                            onManageCategories = { showCategoryManagerDialog = true }
-                        )
-                    }
-                    if (filtered.isEmpty()) {
+                    if (folder == null) {
                         item {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 64.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Notes,
-                                    contentDescription = null,
-                                    tint = Color(0xFF8C5319).copy(alpha = 0.5f),
-                                    modifier = Modifier.size(44.dp)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = "Henüz not eklenmedi",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF6A4E31)
-                                )
-                            }
+                            NotesFolderList(categories, notes, onOpenFolder = { folder = it; searchQuery = "" },
+                                onAddCategory = { NotesStore.addCategory(context, it); onCategoriesChanged() },
+                                onManageCategories = { showCategoryManager = true })
                         }
                     } else {
+                        if (deleteMode) item { Text("Silmek için nota dokunun", fontSize = 12.sp, color = Color(0xFF991B1B)) }
+                        if (filtered.isEmpty()) item {
+                            Text(if (searchQuery.isBlank()) "Henüz not yok" else "Not bulunamadı", modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                                color = Color(0xFF6A4E31), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
                         items(filtered, key = { it.id }) { note ->
-                            NoteTitleListItem(
-                                note = note,
-                                buttonShape = RoundedCornerShape(14.dp),
-                                isGlass = false,
-                                activeTheme = AppTheme.CLASSIC_EMERALD,
-                                onOpenFullScreen = { onOpenNoteEditor(note) },
-                                onTogglePin = {
-                                    val updated = notes.map {
-                                        if (it.id == note.id) it.copy(isPinned = !it.isPinned) else it
-                                    }
-                                    onUpdateNotes(updated)
-                                },
-                                onDelete = {
-                                    noteToDeleteConfirm = note
-                                },
-                                showEditAction = managementMode == 1,
-                                showDeleteAction = managementMode == 2
-                            )
+                            NoteTitleListItem(note = note, buttonShape = RoundedCornerShape(14.dp), isGlass = false,
+                                activeTheme = AppTheme.CLASSIC_EMERALD, onOpenFullScreen = { onOpenNoteEditor(note, null) },
+                                onTogglePin = { onUpdateNotes(notes.map { if (it.id == note.id) it.copy(isPinned = !it.isPinned) else it }) },
+                                onDelete = { noteToDelete = note }, showDeleteAction = deleteMode)
                         }
                     }
                 }
             }
         }
     }
-
-    if (showCategoryManagerDialog) {
-        CategoryPickerBottomSheet(
-            categories = categories,
-            selectedCategory = selectedCategory,
-            includeAllOption = true,
-            onSelectCategory = { selectedCategory = it },
-            onAddCategory = { newCat ->
-                NotesStore.addCategory(context, newCat)
+    if (showCategoryManager) {
+        CategoryManagerDialog(categories = categories,
+            onAddCategory = { NotesStore.addCategory(context, it); onCategoriesChanged() },
+            onRenameCategory = { old, new ->
+                val renamed = NotesStore.renameCategoryWithResult(context, old, new)
+                folder = renamed.selectionAfter(folder)
                 onCategoriesChanged()
             },
-            onRenameCategory = { oldCat, newCat ->
-                NotesStore.renameCategory(context, oldCat, newCat)
-                if (selectedCategory == oldCat) selectedCategory = newCat
+            onDeleteCategory = {
+                NotesStore.deleteCategory(context, it)
+                if (folder == it) folder = null
                 onCategoriesChanged()
-            },
-            onDeleteCategory = { delCat ->
-                NotesStore.deleteCategory(context, delCat)
-                if (selectedCategory == delCat) selectedCategory = "Tümü"
-                onCategoriesChanged()
-            },
-            onDismiss = { showCategoryManagerDialog = false }
-        )
+            }, onDismiss = { showCategoryManager = false })
     }
-
-    if (showGearSettingsDialog) {
-        AlertDialog(
-            onDismissRequest = { showGearSettingsDialog = false },
-            containerColor = Color(0xFFF6EBD8),
-            titleContentColor = Color(0xFF2B1B0E),
-            textContentColor = Color(0xFF4A3219),
-            title = {
-                Text(
-                    text = "Ayarlar",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 1. Kategorileri Yönet
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFEAD7B7),
-                        border = BorderStroke(1.dp, Color(0xFFB68952)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showGearSettingsDialog = false
-                                showCategoryManagerDialog = true
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFF8C5319))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Kategorileri Düzenle", fontWeight = FontWeight.Bold, color = Color(0xFF2B1B0E), fontSize = 14.sp)
-                        }
-                    }
-
-                    // 2. İçe Aktar
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFEAD7B7),
-                        border = BorderStroke(1.dp, Color(0xFFB68952)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showGearSettingsDialog = false
-                                onLaunchImport()
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.FileUpload, contentDescription = null, tint = Color(0xFF8C5319))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Metin Dosyası İçe Aktar", fontWeight = FontWeight.Bold, color = Color(0xFF2B1B0E), fontSize = 14.sp)
-                        }
-                    }
-
-                    // 3. Düzenleme Modu
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (managementMode == 1) Color(0xFFD5B68A) else Color(0xFFEAD7B7),
-                        border = BorderStroke(1.dp, Color(0xFFB68952)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                managementMode = if (managementMode == 1) 0 else 1
-                                showGearSettingsDialog = false
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF8C5319))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (managementMode == 1) "Düzenleme Modunu Kapat" else "Notları Düzenle",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2B1B0E),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-
-                    // 4. Silme Modu
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (managementMode == 2) Color(0xFFFECACA) else Color(0xFFEAD7B7),
-                        border = BorderStroke(1.dp, Color(0xFFB68952)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                managementMode = if (managementMode == 2) 0 else 2
-                                showGearSettingsDialog = false
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFB91C1C))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (managementMode == 2) "Silme Modunu Kapat" else "Not Sil",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF991B1B),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-
-                    // 5. Tüm Notları Sil
-                    if (notes.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFFEE2E2),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showGearSettingsDialog = false
-                                    showClearAllConfirmDialog = true
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color(0xFFB91C1C))
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text("Tüm Notları Sil", fontWeight = FontWeight.Bold, color = Color(0xFFB91C1C), fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showGearSettingsDialog = false }) {
-                    Text("Kapat", fontWeight = FontWeight.Bold, color = Color(0xFF8C5319))
-                }
-            }
-        )
+    noteToDelete?.let { note ->
+        AlertDialog(onDismissRequest = { noteToDelete = null }, title = { Text("Notu sil") }, text = { Text("“${note.title}” silinsin mi?") },
+            confirmButton = { TextButton(onClick = { onUpdateNotes(notes.filterNot { it.id == note.id }); noteToDelete = null }) { Text("Sil") } },
+            dismissButton = { TextButton(onClick = { noteToDelete = null }) { Text("Vazgeç") } })
     }
-
-    val targetDelete = noteToDeleteConfirm
-    if (targetDelete != null) {
-        AlertDialog(
-            onDismissRequest = { noteToDeleteConfirm = null },
-            title = { Text("Notu Sil", fontWeight = FontWeight.Bold) },
-            text = { Text("\"${targetDelete.title}\" silinsin mi?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val updated = notes.filterNot { it.id == targetDelete.id }
-                        onUpdateNotes(updated)
-                        noteToDeleteConfirm = null
-                    }
-                ) {
-                    Text("Sil", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { noteToDeleteConfirm = null }) {
-                    Text("Vazgeç")
-                }
-            }
-        )
-    }
-
-    if (showClearAllConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearAllConfirmDialog = false },
-            title = { Text("Tüm Notları Sil", fontWeight = FontWeight.Bold) },
-            text = { Text("Tüm notlar kalıcı olarak silinsin mi?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onUpdateNotes(emptyList())
-                        showClearAllConfirmDialog = false
-                        managementMode = 0
-                    }
-                ) {
-                    Text("Tümünü Sil", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearAllConfirmDialog = false }) {
-                    Text("Vazgeç")
-                }
-            }
-        )
+    if (clearAllConfirm) {
+        AlertDialog(onDismissRequest = { clearAllConfirm = false }, title = { Text("Tüm notları sil") }, text = { Text("Tüm notlar kalıcı olarak silinsin mi?") },
+            confirmButton = { TextButton(onClick = { onUpdateNotes(emptyList()); clearAllConfirm = false; deleteMode = false }) { Text("Tümünü Sil") } },
+            dismissButton = { TextButton(onClick = { clearAllConfirm = false }) { Text("Vazgeç") } })
     }
 }
 
@@ -2675,6 +2319,7 @@ fun NotesScreen(
     var userCategories by remember { mutableStateOf(NotesStore.loadCategories(context)) }
     var editingNote by rememberSaveable(stateSaver = UserNoteStateSaver) { mutableStateOf<UserNote?>(null) }
     var isCreatingNewNote by rememberSaveable { mutableStateOf(false) }
+    var newNoteCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -2735,7 +2380,8 @@ fun NotesScreen(
         onLaunchImport = {
             importLauncher.launch(arrayOf("text/*", "application/octet-stream"))
         },
-        onOpenNoteEditor = { noteToEdit ->
+        onOpenNoteEditor = { noteToEdit, folder ->
+            newNoteCategory = folder
             if (noteToEdit == null) {
                 editingNote = null
                 isCreatingNewNote = true
@@ -2751,6 +2397,7 @@ fun NotesScreen(
         val currentTarget = editingNote
         FullScreenStrawPaperNoteEditor(
             initialNote = currentTarget,
+            initialCategory = newNoteCategory,
             categories = userCategories,
             onCategoriesChanged = {
                 userCategories = NotesStore.loadCategories(context)

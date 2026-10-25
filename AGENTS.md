@@ -1,4 +1,4 @@
-# VakitBox Pro geliştirme kuralları
+# Vakit Pro geliştirme kuralları
 
 - Sürümün tek kaynağı `version.properties` dosyasıdır; Hakkında ve Android paket bilgileri buradan gelir.
 - Her değişen geliştirme paketinde sürümü ilerletin. Hata düzeltmesi için normal paketleme yama sürümünü otomatik artırır. Yeni özellikte `-PversionBump=minor`, geriye uyumsuz büyük değişiklikte `-PversionBump=major` kullanın. Aynı kaynakları yeniden paketlerken yeniden artırmayın; Android `versionCode` değerini düşürmeyin. `VERSIONING.md` akışını izleyin.

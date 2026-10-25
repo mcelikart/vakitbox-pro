@@ -140,21 +140,19 @@ class CountdownStatusIconTest {
         remaining.forEachIndexed { index, millis ->
             val x = 140f + index * 102f
             val bitmap = requireNotNull(CountdownStatusIcon.create(context, millis).bitmap)
-            // Reproduce the previous release's natural font proportions only
-            // for this visual comparison; production always uses the new clock.
+            // Reproduce 5.4.0 for a real-size comparison with the bolder clock.
             val old = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
             val oldCanvas = Canvas(old)
             val oldPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 color = Color.WHITE
-                typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
                 textSize = 100f
             }
             val label = labels[index]
             val bounds = Rect()
             oldPaint.getTextBounds(label, 0, label.length, bounds)
-            val scale = minOf(47f / bounds.width(), 47f / bounds.height())
-            oldCanvas.translate((48 - bounds.width() * scale) / 2, (48 - bounds.height() * scale) / 2)
-            oldCanvas.scale(scale, scale)
+            oldCanvas.translate(0.5f, 5.5f)
+            oldCanvas.scale(47f / bounds.width(), 37f / bounds.height())
             oldCanvas.drawText(label, -bounds.left.toFloat(), -bounds.top.toFloat(), oldPaint)
             canvas.drawText(label, x, 25f, paint)
             canvas.drawBitmap(old, null, RectF(x, 44f, x + 24, 68f), paint)

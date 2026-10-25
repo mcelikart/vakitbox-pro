@@ -20,7 +20,7 @@ class SunriseAlarmRingingStateTest {
 
     @Before fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        listOf(SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES).forEach {
+        listOf(SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES, SunriseAlarmSettingsStore.PREFERENCES).forEach {
             context.getSharedPreferences(it, 0).edit().clear().commit()
         }
     }

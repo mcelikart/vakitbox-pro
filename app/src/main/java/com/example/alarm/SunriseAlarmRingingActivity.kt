@@ -6,6 +6,8 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.view.KeyEvent
+import android.media.AudioManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -59,6 +61,31 @@ import java.util.Date
 
 /** A normal alarm control screen that may show over, but never unlock, the keyguard. */
 class SunriseAlarmRingingActivity : ComponentActivity() {
+    private val handledVolumeKeys = mutableSetOf<Int>()
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return super.onKeyDown(keyCode, event)
+        val current = SunriseAlarmRingingState(this).list().firstOrNull { it.expiresAtMillis > System.currentTimeMillis() }
+            ?: return if (keyCode in handledVolumeKeys) true else super.onKeyDown(keyCode, event)
+        handledVolumeKeys += keyCode
+        when (current.settings.volumeKeyAction) {
+            AlarmVolumeKeyAction.SNOOZE -> if (event.repeatCount == 0 && !SunriseAlarmScheduler.snooze(this, current.delivery.token)) {
+                Toast.makeText(this, "Alarm ertelenemedi. Alarm iznini kontrol edin.", Toast.LENGTH_LONG).show()
+            }
+            AlarmVolumeKeyAction.DISMISS -> if (event.repeatCount == 0) SunriseAlarmScheduler.dismiss(this, current.delivery.token)
+            AlarmVolumeKeyAction.VOLUME -> getSystemService(AudioManager::class.java).adjustStreamVolume(
+                AudioManager.STREAM_ALARM,
+                if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                AudioManager.FLAG_SHOW_UI
+            )
+            AlarmVolumeKeyAction.NONE -> Unit
+        }
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (handledVolumeKeys.remove(keyCode)) return true
+        return super.onKeyUp(keyCode, event)
+    }
     override fun onResume() {
         super.onResume()
         val now = System.currentTimeMillis()
@@ -108,7 +135,7 @@ class SunriseAlarmRingingActivity : ComponentActivity() {
                     records = active,
                     now = now,
                     onSnooze = { token ->
-                        if (!SunriseAlarmScheduler.snooze(this, token, SunriseAlarmRingingService.SNOOZE_MINUTES)) {
+                        if (!SunriseAlarmScheduler.snooze(this, token)) {
                             Toast.makeText(this, "Alarm ertelenemedi. Alarm iznini kontrol edin.", Toast.LENGTH_LONG).show()
                         }
                     },
@@ -176,7 +203,7 @@ internal fun SunriseAlarmRingingContent(
                     shape = RoundedCornerShape(24.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF294537), contentColor = foreground)
                 ) {
-                    Text("${SunriseAlarmRingingService.SNOOZE_MINUTES} dk ertele", fontSize = 20.sp,
+                    Text("${current.settings.snoozeMinutes} dk ertele", fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 8.dp))
                 }
                 Button(

@@ -72,7 +72,7 @@ def main():
         url = f"https://tanzil.net/trans/{edition}"
         cached = args.cache_dir / f"{edition}.txt"
         if not cached.exists():
-            request = urllib.request.Request(url, headers={"User-Agent": "VakitBox-Pro-offline-corpus/1.0"})
+            request = urllib.request.Request(url, headers={"User-Agent": "Vakit-Pro-offline-corpus/1.0"})
             cached.write_bytes(urllib.request.urlopen(request, timeout=90).read())
         raw = cached.read_bytes()
         records, footer = parse_source(raw)
@@ -95,7 +95,7 @@ def main():
     }
     (out / "SOURCES.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     notice = (
-        "VakitBox Pro — çevrimdışı Kur’an okuyucu kaynakları\n\n"
+        "Vakit Pro — çevrimdışı Kur’an okuyucu kaynakları\n\n"
         "Bu dosyalar Tanzil'in yayımladığı meal ve çeviriyazı metinleridir. Ayet\n"
         "içerikleri değiştirilmeden, sure ve ayet numaraları doğrulanarak paketlenir.\n"
         "Türkçe ve İngilizce mealler birbirinin yerine etiketlenmez.\n\n"

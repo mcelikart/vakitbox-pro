@@ -67,4 +67,25 @@ class NotesStoreTest {
         assertEquals(note.copy(category = "yeni"), NotesStore.loadNotes(context).single())
     }
 
+    @Test fun rejectedRenameResultKeepsTheOpenFolderAndEditorCategoryWhileAnAcceptedRenameMovesThem() {
+        val categories = listOf("Özel", "Diğer")
+        NotesStore.saveCategories(context, categories)
+        val note = UserNote(id = "selection-note", title = "Not", content = "Korunan içerik", category = "Özel")
+        NotesStore.saveNotes(context, listOf(note))
+        for (invalid in listOf("tümü", " tümü ", "Diğer", "diğer", "")) {
+            val result = NotesStore.renameCategoryWithResult(context, "Özel", invalid)
+            assertEquals(null, result.acceptedName)
+            assertEquals(categories, result.categories)
+            assertEquals("Özel", result.selectionAfter("Özel"))
+            assertEquals("Diğer", result.selectionAfter("Diğer"))
+            assertEquals(null, result.selectionAfter(null))
+            assertEquals(note, NotesStore.loadNotes(context).single())
+        }
+        val accepted = NotesStore.renameCategoryWithResult(context, "Özel", " Yeni ad ")
+        assertEquals("Yeni ad", accepted.acceptedName)
+        assertEquals("Yeni ad", accepted.selectionAfter("Özel"))
+        assertEquals("Diğer", accepted.selectionAfter("Diğer"))
+        assertEquals(note.copy(category = "Yeni ad"), NotesStore.loadNotes(context).single())
+    }
+
 }

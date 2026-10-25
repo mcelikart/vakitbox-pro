@@ -76,6 +76,7 @@ object SunriseAlarmScheduler {
             }.onFailure { Log.w("SunriseAlarmScheduler", "Could not arm sunrise alarm", it) }.isSuccess
         }
         write(context, RuntimeState(armed, configurations))
+        SunriseAlarmPreNotification.sync(context, armed, now)
         val keptTokens = armed.mapTo(mutableSetOf()) { it.token }
         previous.pending.filterNot { it.token in keptTokens }.forEach { cancel(context, manager, it) }
     }
@@ -115,21 +116,22 @@ object SunriseAlarmScheduler {
     fun snooze(
         context: Context,
         token: String,
-        minutes: Int = 10,
+        minutes: Int? = null,
         now: Long = System.currentTimeMillis()
     ): Boolean {
-        require(minutes in 1..30) { "Snooze duration is out of range" }
+        require(minutes == null || minutes in 1..30) { "Snooze duration is out of range" }
         val ringing = SunriseAlarmRingingState(context)
         val record = ringing.list().firstOrNull {
             it.delivery.token == token && now >= it.startedAtMillis && it.expiresAtMillis > now
         } ?: return false
+        val snoozeMinutes = minutes ?: record.settings.snoozeMinutes
         val alarm = SunriseAlarmStore(context).find(record.delivery.alarmId) ?: return false
         val state = read(context)
         if (!canSchedule(context) || state.configurations[alarm.id] != signature(alarm) ||
             !isCurrent(context, alarm, record.delivery)) return false
         val manager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return false
         val delivery = record.delivery.copy(token = UUID.randomUUID().toString(),
-            triggerAtMillis = now + minutes * 60_000L, fromSnooze = true)
+            triggerAtMillis = now + snoozeMinutes * 60_000L, fromSnooze = true)
         return try {
             arm(context, manager, delivery)
             write(context, state.copy(pending = state.pending + delivery))
@@ -146,6 +148,14 @@ object SunriseAlarmScheduler {
 
     @Synchronized
     fun pending(context: Context): List<SunriseAlarmDelivery> = read(context).pending
+
+    @Synchronized
+    internal fun canShowPreNotification(context: Context, delivery: SunriseAlarmDelivery): Boolean {
+        val state = read(context)
+        val alarm = SunriseAlarmStore(context).find(delivery.alarmId) ?: return false
+        return canSchedule(context) && alarm.enabled && state.pending.any { it == delivery } &&
+            state.configurations[alarm.id] == signature(alarm) && isCurrent(context, alarm, delivery)
+    }
 
     fun fireIntent(context: Context, delivery: SunriseAlarmDelivery): Intent =
         Intent(context, SunriseAlarmReceiver::class.java).apply {
@@ -183,6 +193,7 @@ object SunriseAlarmScheduler {
     }
 
     private fun cancel(context: Context, manager: AlarmManager, delivery: SunriseAlarmDelivery) {
+        SunriseAlarmPreNotification.cancel(context, delivery)
         runCatching {
             val pending = PendingIntent.getBroadcast(context, REQUEST_FIRE, fireIntent(context, delivery),
                 PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) ?: return

@@ -35,10 +35,12 @@ class SunriseAlarmSchedulerTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         context = ApplicationProvider.getApplicationContext()
         manager = context.getSystemService(AlarmManager::class.java)
-        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES,
+        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES, SunriseAlarmSettingsStore.PREFERENCES,
             "sunrise_alarm_runtime", "prayer_daily_times", "countdown_service_prefs").forEach {
             context.getSharedPreferences(it, 0).edit().clear().commit()
         }
+        // These tests isolate exact ringing deliveries; upcoming notices are covered separately.
+        SunriseAlarmSettingsStore(context).save(SunriseAlarmSettings(preNotificationMinutes = 0))
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         shadowOf(context.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
         if (Build.VERSION.SDK_INT >= 33) shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)

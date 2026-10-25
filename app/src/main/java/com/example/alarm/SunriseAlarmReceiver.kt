@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 class SunriseAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
+            SunriseAlarmPreNotification.ACTION_PRE_NOTIFY -> SunriseAlarmPreNotification.receive(context, intent)
             SunriseAlarmScheduler.ACTION_FIRE -> {
                 val delivery = SunriseAlarmScheduler.receive(context, intent) ?: return
                 try {

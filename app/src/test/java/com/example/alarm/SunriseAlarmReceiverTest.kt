@@ -52,10 +52,11 @@ class SunriseAlarmReceiverTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         context = ApplicationProvider.getApplicationContext<Application>()
         manager = context.getSystemService(AlarmManager::class.java)
-        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES,
+        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES, SunriseAlarmSettingsStore.PREFERENCES,
             "sunrise_alarm_runtime", "prayer_daily_times", "countdown_service_prefs").forEach {
             context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit()
         }
+        SunriseAlarmSettingsStore(context).save(SunriseAlarmSettings(preNotificationMinutes = 0))
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         shadowOf(context.getSystemService(NotificationManager::class.java)).setNotificationsEnabled(true)
         if (Build.VERSION.SDK_INT >= 33) shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)

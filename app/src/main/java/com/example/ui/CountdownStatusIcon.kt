@@ -62,11 +62,14 @@ internal object CountdownStatusIcon {
         canvas.scale(size / SIZE_DP, size / SIZE_DP)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             color = Color.WHITE
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 2.4f
             textSize = 100f
         }
-        // Use the whole available width, while keeping the glyph height closer
-        // to a natural clock proportion than the previous stretched treatment.
+        // A compact bold face keeps the counters open at status-bar size.
+        // The subtle extra stroke survives SystemUI downsampling without
+        // adding a frame or spending any of the available width on padding.
         val bounds = Rect()
         paint.getTextBounds(label, 0, label.length, bounds)
         val width = SIZE_DP - 0.5f

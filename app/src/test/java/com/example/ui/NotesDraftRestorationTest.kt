@@ -67,6 +67,7 @@ class NotesDraftRestorationTest {
         NotesStore.saveNotes(context, listOf(original))
         val restoration = openNotebook()
         compose.onNodeWithContentDescription("Tam Ekran").performClick()
+        compose.onNodeWithTag("notes-folder-Tümü").performClick()
         compose.onNodeWithText("Asıl not").performScrollTo().performClick()
         compose.onNodeWithTag("note-editor-title").performTextReplacement("Yeni başlık")
         compose.onNodeWithTag("note-editor-body").performTextInput(" ve taslak")
@@ -105,6 +106,7 @@ class NotesDraftRestorationTest {
         NotesStore.saveNotes(context, listOf(original))
         val restoration = StateRestorationTester(compose)
         restoration.setContent { MyApplicationTheme { NotesScreen(onBack = {}) } }
+        compose.onNodeWithTag("notes-folder-Tümü").performClick()
         compose.onNodeWithText("Gerçek not").performScrollTo().performClick()
         compose.onNodeWithTag("note-editor-body").performTextInput(" ve taslak")
         restoration.emulateSavedInstanceStateRestore()

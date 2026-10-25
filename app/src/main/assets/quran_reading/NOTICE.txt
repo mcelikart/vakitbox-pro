@@ -1,4 +1,4 @@
-VakitBox Pro — çevrimdışı Kur’an okuyucu kaynakları
+Vakit Pro — çevrimdışı Kur’an okuyucu kaynakları
 
 Bu dosyalar Tanzil'in yayımladığı meal ve çeviriyazı metinleridir. Ayet
 içerikleri değiştirilmeden, sure ve ayet numaraları doğrulanarak paketlenir.

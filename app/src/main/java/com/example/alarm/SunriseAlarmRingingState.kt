@@ -10,11 +10,13 @@ data class SunriseAlarmRingRecord(
     val delivery: SunriseAlarmDelivery,
     val label: String,
     val startedAtMillis: Long,
-    val expiresAtMillis: Long
+    val expiresAtMillis: Long,
+    val settings: SunriseAlarmSettings = SunriseAlarmSettings()
 )
 
 class SunriseAlarmRingingState(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    private val settingsStore = SunriseAlarmSettingsStore(context)
 
     // Expired records remain visible to the service so that their cleanup also releases audio resources.
     fun list(): List<SunriseAlarmRingRecord> = synchronized(lock) { read() }
@@ -26,11 +28,13 @@ class SunriseAlarmRingingState(context: Context) {
     ): SunriseAlarmRingRecord = synchronized(lock) {
         val current = read()
         current.firstOrNull { it.delivery.token == delivery.token }?.let { return@synchronized it }
+        val settings = settingsStore.read()
         val record = SunriseAlarmRingRecord(
             delivery = delivery,
             label = label.trim().take(80).ifBlank { SunriseAlarm.DEFAULT_LABEL },
             startedAtMillis = now,
-            expiresAtMillis = now + MAX_RING_DURATION_MILLIS
+            expiresAtMillis = now + settings.ringMinutes * 60_000L,
+            settings = settings
         )
         write(current + record)
         record
@@ -80,7 +84,8 @@ class SunriseAlarmRingingState(context: Context) {
                             .let { if (it == SunriseAlarm.LEGACY_DEFAULT_LABEL) SunriseAlarm.DEFAULT_LABEL else it }
                             .ifBlank { SunriseAlarm.DEFAULT_LABEL },
                         startedAtMillis = start,
-                        expiresAtMillis = expires
+                        expiresAtMillis = expires,
+                        settings = item.optJSONObject("settings")?.let(SunriseAlarmSettings::fromJson) ?: SunriseAlarmSettings()
                     )
                 }.getOrNull() ?: continue
                 if (tokens.add(record.delivery.token)) add(record)
@@ -101,13 +106,14 @@ class SunriseAlarmRingingState(context: Context) {
                 put("label", record.label)
                 put("startedAtMillis", record.startedAtMillis)
                 put("expiresAtMillis", record.expiresAtMillis)
+                put("settings", record.settings.toJson())
             })
         }
         check(preferences.edit().putString(RECORDS, array.toString()).commit()) { "Could not save ringing alarms" }
     }
 
     companion object {
-        const val MAX_RING_DURATION_MILLIS = 10 * 60_000L
+        const val MAX_RING_DURATION_MILLIS = 30 * 60_000L
         internal const val PREFERENCES = "sunrise_alarm_ringing"
         internal const val RECORDS = "active_v1"
         private val lock = Any()

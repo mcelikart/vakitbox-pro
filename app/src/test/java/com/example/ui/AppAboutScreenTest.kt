@@ -24,7 +24,7 @@ class AppAboutScreenTest {
 
     @Test fun aboutShowsThePackagedVersionAndBundledSources() {
         compose.setContent { MyApplicationTheme { AboutSubScreen(onBack = {}) } }
-        compose.onNodeWithText("VakitBox Pro").assertIsDisplayed()
+        compose.onNodeWithText("Vakit Pro").assertIsDisplayed()
         compose.onNodeWithText("Sürüm ${BuildConfig.VERSION_NAME} • Yapı ${BuildConfig.VERSION_CODE}").assertIsDisplayed()
         compose.onNodeWithText("Kur’an metni: Tanzil · Seçilebilir mealler ve Türkçe okunuş: çevrimdışı").performScrollTo().assertIsDisplayed()
         File("build/quran-index-scenes").mkdirs()

@@ -31,7 +31,7 @@ class SunriseAlarmRingingServiceTest {
 
     @Before fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES,
+        listOf(SunriseAlarmStore.PREFERENCES, SunriseAlarmRingingState.PREFERENCES, SunriseAlarmVolumeLease.PREFERENCES, SunriseAlarmSettingsStore.PREFERENCES,
             "sunrise_alarm_scheduler").forEach { context.getSharedPreferences(it, 0).edit().clear().commit() }
         manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager

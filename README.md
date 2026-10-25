@@ -1,18 +1,28 @@
-# VakitBox Pro
+# Vakit Pro
 
-VakitBox Pro; namaz vakitlerini, çevrimdışı Kur’an okuma ve konu aramasını, günlük ibadet araçlarını, yürüyüş takibini ve not defterini bir araya getiren Android uygulamasıdır. Kotlin ve Jetpack Compose ile geliştirilmiştir.
+Vakit Pro; namaz vakitlerini takip etmek, Kur’an okumak, bir konu hakkında ayet aramak ve günlük notlar tutmak için geliştirilen Android uygulamasıdır. Sabah Namazı Alarmı, canlı geri sayım, kıble pusulası, zikirmatik ve yürüyüş takibi aynı uygulamada bulunur.
+
+Kur’an metinleri, seçilebilir mealler, Türkçe okunuş ve anlam odaklı fihrist cihazda çalışır. Ana sayfada sıradaki vakit, hava durumu, adımsayar ve sabah alarmı görülebilir; diğer araçlara uygulama menüsünden erişilir.
 
 [Son sürümü ve APK’yi indir](https://github.com/mcelikart/vakitbox-pro/releases/latest)
 
 ## Ekran görüntüleri
 
 <p align="center">
-  <img src="screenshots/20_home_5_4_0.png" alt="Ana sayfa: geri sayım, vakitler, adımsayar ve sabah namazı alarmı" width="46%" />
-  <img src="screenshots/21_quran_sources_5_4_0.png" alt="Çevrimdışı Kur’an meal kaynakları ve seçim ekranı" width="46%" />
+  <img src="screenshots/30_home_5_5_0.png" alt="Vakit Pro ana sayfası: geri sayım, vakitler ve kısayollar" width="46%" />
+  <img src="screenshots/31_quran_sources_5_5_0.png" alt="Çevrimdışı Kur’an mealleri ve kaynak seçimi" width="46%" />
 </p>
 <p align="center">
-  <img src="screenshots/22_walk_5_4_0.png" alt="Sade yürüyüş ekranı: adım, mesafe, kalori, süre ve geçmiş" width="46%" />
-  <img src="screenshots/23_notes_editor_5_4_0.png" alt="Kategori seçimi ve sesle yazma özellikli not defteri" width="46%" />
+  <img src="screenshots/32_alarm_settings_5_5_0.png" alt="Sabah Namazı Alarmı ayarları" width="46%" />
+  <img src="screenshots/33_notes_folders_5_5_0.png" alt="Not defteri klasörleri" width="46%" />
+</p>
+<p align="center">
+  <img src="screenshots/34_voice_notes_5_5_0.png" alt="Editörde doğrudan sesle not yazma" width="46%" />
+  <img src="screenshots/35_walk_5_5_0.png" alt="Yürüyüş özeti: adım, mesafe, kalori ve süre" width="46%" />
+</p>
+<p align="center">
+  <img src="screenshots/36_dhikr_5_5_0.png" alt="Tesbih ve zikir sayacı" width="46%" />
+  <img src="screenshots/37_compass_5_5_0.png" alt="Kıble pusulası" width="46%" />
 </p>
 
 ## Özellikler
@@ -22,14 +32,17 @@ VakitBox Pro; namaz vakitlerini, çevrimdışı Kur’an okuma ve konu aramasın
 - Seçilen konuma göre günlük namaz vakitleri ve bir sonraki vakte kalan süre.
 - Vakit girmeden 10 dakika önce ve vakit başladığında bildirim.
 - Bildirim alanında sürekli görünen geri sayım; vakit bildirimi geri sayımın altında kalır ve beş dakika sonra otomatik kapanır.
-- Durum çubuğunda büyük, okunaklı ve canlı kalan-süre göstergesi.
+- Durum çubuğunda çerçevesiz, daha kalın rakamlarla kalan-süre göstergesi. Boyutu Android’in durum çubuğu alanıyla sınırlıdır.
 - Konum seçimi ve farklı vakit hesaplama yöntemleri.
 
 ### Sabah Namazı alarmı
 
 - Alarm saatini güneş doğuşuna göre her gün yeniler.
 - Varsayılan alarm güneş doğuşundan 30 dakika öncedir; bu süre değiştirilebilir ve birden fazla alarm kurulabilir.
-- Alarm sesi ve erteleme/kapatma kontrolleri Android alarm davranışını izler.
+- Telefonun varsayılan alarm sesi veya seçilen bir zil sesiyle çalar; kilit ekranında erteleme ve kapatma kontrolleri sunar.
+- Sağ üst menüdeki Ayarlar bölümünden çalma süresi, erteleme süresi, alarm ses düzeyi, kademeli ses artışı ve sessiz ön bildirim ayarlanır.
+- Destekleyen cihazlarda telefonu çevirerek erteleme; alarm ekranında ses tuşuyla erteleme, kapatma veya ses düzeyini değiştirme seçenekleri vardır.
+- Telefon sessizdeyken alarm ses kanalını kullanır. Alarm kanalı kapalıysa çalma sırasında duyulabilir düzeye getirir; kullanıcı sesi değiştirmediyse önceki düzeyi geri yükler. Telefon tamamen kapalıyken açılıp alarm çalma, telefon üreticisinin Saat uygulamasına özgüdür.
 
 ### Çevrimdışı Kur’an fihristi
 
@@ -57,12 +70,12 @@ VakitBox Pro; namaz vakitlerini, çevrimdışı Kur’an okuma ve konu aramasın
 
 ### Not defteri
 
-- Notların bulunduğu listede kategoriler, kategoriye göre filtreleme ve not sayıları.
-- Kategori ekleme, yeniden adlandırma ve silme; kategori silinirken notlar Kategorisiz altında korunur.
-- Not düzenlerken cihazın konuşma tanımasıyla sesle yazma; mevcut metin korunarak imleç konumuna ekleme.
+- Klasörleri açarak notlar arasında gezinme, klasör başına not sayısı ve notlarda arama.
+- Klasör ekleme, yeniden adlandırma ve menüden silme; klasör silinirken notlar Kategorisiz altında korunur.
+- Not editöründeki mikrofonla doğrudan sesle yazma; mevcut metin korunarak imleç konumuna ekleme ve tek dokunuşla dinlemeyi durdurma.
 - Arama, sabitleme, yazı düzenleme ve kaydetme kontrolleri.
 
-Kur’an metinleri ve fihrist araması cihazda çalışır. Hava durumu, harita, sesli tilavet ve isteğe bağlı asistan gibi bazı özellikler internet bağlantısı gerektirebilir. Sesle not yazma, cihazdaki konuşma tanıma uygulamasını kullanır.
+Kur’an metinleri ve fihrist araması cihazda çalışır. Hava durumu, harita, sesli tilavet ve isteğe bağlı asistan gibi bazı özellikler internet bağlantısı gerektirebilir. Sesle not yazma mikrofon izni ve cihazda konuşma tanıma desteği gerektirir; cihazın desteklediği yerde yerel tanıma kullanılır.
 
 ## Kurulum
 

@@ -20,12 +20,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -158,6 +161,12 @@ internal fun SunriseAlarmContent(
     permissionContent: @Composable () -> Unit = {}
 ) {
     var editingAlarm by remember { mutableStateOf<SunriseAlarm?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    if (settingsOpen) {
+        SunriseAlarmSettingsScreen(onBack = { settingsOpen = false })
+        return
+    }
     BackHandler(onBack = onBack)
 
     Surface(
@@ -184,6 +193,17 @@ internal fun SunriseAlarmContent(
                     modifier = Modifier.testTag("sunrise-alarm-add")
                 ) {
                     Icon(Icons.Default.Add, "Alarm ekle", tint = MaterialTheme.colorScheme.primary)
+                }
+                androidx.compose.foundation.layout.Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("sunrise-alarm-menu")) {
+                        Icon(Icons.Default.MoreVert, "Diğer seçenekler", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Ayarlar") }, onClick = {
+                            menuOpen = false
+                            settingsOpen = true
+                        }, modifier = Modifier.testTag("sunrise-alarm-open-settings"))
+                    }
                 }
             }
             LazyColumn(

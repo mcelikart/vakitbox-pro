@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -30,6 +31,16 @@ class SunriseAlarmAudio(private val context: Context) {
     private var prepared = false
     private var candidates: List<Uri> = emptyList()
     private var candidateIndex = 0
+    private var settings = SunriseAlarmSettings()
+    private var startedElapsed = 0L
+    private val volumeRamp = object : Runnable {
+        override fun run() {
+            if (!running || !settings.gradualVolume) return
+            val gain = gradualGain()
+            runCatching { player?.setVolume(gain, gain) }
+            if (gain < 1f) handler.postDelayed(this, 500L)
+        }
+    }
 
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         if (running) {
@@ -51,21 +62,28 @@ class SunriseAlarmAudio(private val context: Context) {
     private val fallbackPulse = object : Runnable {
         override fun run() {
             if (!running || !focused || fallbackTone == null) return
+            if (settings.gradualVolume) {
+                runCatching { fallbackTone?.release() }
+                fallbackTone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, (gradualGain() * 100).toInt()) }.getOrNull()
+            }
             fallbackTone?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 900)
             handler.postDelayed(this, 1_500L)
         }
     }
 
     /** The caller must have entered foreground before this call, including on Android 15+. */
-    fun start() {
+    fun start(settings: SunriseAlarmSettings = SunriseAlarmSettings()) {
         if (running) return
+        this.settings = settings.sanitized()
+        startedElapsed = SystemClock.elapsedRealtime()
         running = true
-        volume.acquire()
+        volume.acquire(this.settings.volumePercent)
         focused = acquireFocus()
         startVibration()
         candidates = toneCandidates()
         candidateIndex = 0
         prepareNextTone()
+        if (settings.gradualVolume) volumeRamp.run()
         if (!focused) handler.postDelayed(retryFocus, 3_000L)
     }
 
@@ -107,6 +125,7 @@ class SunriseAlarmAudio(private val context: Context) {
     }.getOrDefault(false)
 
     private fun toneCandidates(): List<Uri> = buildList {
+        settings.ringtoneUri?.let(Uri::parse)?.let(::add)
         runCatching { RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM) }
             .getOrNull()?.let(::add)
         RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.let(::add)
@@ -137,7 +156,8 @@ class SunriseAlarmAudio(private val context: Context) {
         try {
             next.setAudioAttributes(ALARM_ATTRIBUTES)
             next.isLooping = true
-            next.setVolume(1f, 1f)
+            val gain = gradualGain()
+            next.setVolume(gain, gain)
             next.setOnPreparedListener {
                 if (running && player === next) {
                     prepared = true
@@ -168,9 +188,12 @@ class SunriseAlarmAudio(private val context: Context) {
     }
 
     private fun startFallback() {
-        fallbackTone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, 100) }.getOrNull()
+        fallbackTone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, (gradualGain() * 100).toInt()) }.getOrNull()
         resumeSound()
     }
+
+    private fun gradualGain(): Float = if (!settings.gradualVolume) 1f else
+        (.08f + (SystemClock.elapsedRealtime() - startedElapsed).coerceAtLeast(0L) / 30_000f * .92f).coerceIn(.08f, 1f)
 
     @Suppress("DEPRECATION")
     private fun startVibration() = runCatching {
@@ -198,25 +221,27 @@ class SunriseAlarmAudio(private val context: Context) {
     }
 }
 
-/** Raises only a muted alarm stream, then restores it unless the user changed it while ringing. */
+/** Applies an alarm-only volume temporarily; restores it unless changed by the user while ringing. */
 internal class SunriseAlarmVolumeLease(
     context: Context,
     private val manager: AudioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 ) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
-    fun acquire() = synchronized(lock) {
+    fun acquire(volumePercent: Int? = null) = synchronized(lock) {
         runCatching {
             val current = manager.getStreamVolume(AudioManager.STREAM_ALARM)
             if (preferences.contains(APPLIED)) {
                 // Preserve the original volume over a service/process restart, without another increase.
                 if (current == preferences.getInt(APPLIED, -1)) return@synchronized
                 preferences.edit().clear().commit()
+                return@synchronized // A user volume change also wins over a process restart.
             }
-            if (current != 0) return@synchronized
+            if (current != 0 && volumePercent == null) return@synchronized
             val maximum = manager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             if (maximum <= 0) return@synchronized
-            val audible = ceil(maximum * .6).toInt().coerceIn(1, maximum)
+            val audible = ceil(maximum * ((volumePercent?.coerceIn(1, 100) ?: 60) / 100.0)).toInt().coerceIn(1, maximum)
+            if (audible == current) return@synchronized
             // Commit the restoration lease before modifying system state.
             if (!preferences.edit().putInt(ORIGINAL, current).putInt(APPLIED, audible).commit()) return@synchronized
             manager.setStreamVolume(AudioManager.STREAM_ALARM, audible, 0)
