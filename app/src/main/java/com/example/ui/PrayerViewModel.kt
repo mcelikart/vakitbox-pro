@@ -825,15 +825,7 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
                             (_timings.value?.date?.timestamp?.toLongOrNull() ?: (System.currentTimeMillis() / 1000)) * 1000))
                     }
 
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        try {
-                            getApplication<android.app.Application>().startForegroundService(intent)
-                        } catch (e: Exception) {
-                            // Ignore if we can't start FGS from background
-                        }
-                    } else {
-                        getApplication<android.app.Application>().startService(intent)
-                    }
+                    BackgroundServices.startCountdown(getApplication<android.app.Application>(), intent)
                 }
             }
         } catch (e: Exception) {

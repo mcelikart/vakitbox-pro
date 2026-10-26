@@ -25,6 +25,10 @@ Kur’an metinleri, seçilebilir mealler, Türkçe okunuş ve anlam odaklı fihr
   <img src="screenshots/37_compass_5_5_0.png" alt="Kıble pusulası" width="46%" />
 </p>
 
+<p align="center">
+  <img src="screenshots/38_background_5_5_1.png" alt="Arka planda çalışma, pil ve bildirim izinleri" width="46%" />
+</p>
+
 ## Özellikler
 
 ### Namaz vakitleri ve bildirimler
@@ -34,6 +38,15 @@ Kur’an metinleri, seçilebilir mealler, Türkçe okunuş ve anlam odaklı fihr
 - Bildirim alanında sürekli görünen geri sayım; vakit bildirimi geri sayımın altında kalır ve beş dakika sonra otomatik kapanır.
 - Durum çubuğunda çerçevesiz, daha kalın rakamlarla kalan-süre göstergesi. Boyutu Android’in durum çubuğu alanıyla sınırlıdır.
 - Konum seçimi ve farklı vakit hesaplama yöntemleri.
+
+### Arka planda çalışma
+
+- Geri sayım görünür bir ön plan servisiyle çalışır; ekran kapandığında uygulama ekranının açık tutulması gerekmez.
+- Android işlemi bellek için kapatırsa kalıcı servis yeniden başlatması ve sistemde saklanan bakım görevi toparlanmayı destekler. Geçici bildirim/veri hataları sayaç döngüsünü kapatmadan yeniden denenir.
+- Tek bildirim içinde sayaç ve adım bilgisi korunur; servis yeniden kurulduğunda açık olan adımsayar da yeniden başlatılır.
+- **Ayarlar → Arka Planda Çalışma** bölümünde pil, otomatik başlatma, kesin alarm ve geri sayım bildirimi izinleri kontrol edilir. Eksik ayarlar için bir defalık rehber gösterilir.
+
+Ekran kilitliyken kesinti yaşayan cihazlarda pil kullanımını **Kısıtlanmamış** olarak ayarlayın ve üreticinin sunduğu **Otomatik başlatma** iznini açın. Android ve telefon üreticisi arka plan çalışmasını yönetir; hiçbir uygulama her koşulda kesintisiz açık kalmayı garanti edemez. **Zorla durdur** kullanıldıysa uygulamayı yeniden açmak gerekir. Bakım görevi sistemin pil/uyku politikasına göre ertelenebilir; bir namaz alarmı yerine geçmez.
 
 ### Sabah Namazı alarmı
 

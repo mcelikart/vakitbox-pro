@@ -1,6 +1,6 @@
 # Uygulama sürümleri
 
-Tek sürüm kaynağı `version.properties` dosyasıdır. Android paketinin ve Ayarlar → Uygulama Hakkında ekranının sürümleri aynı kaynaktan gelir. Mevcut sürüm **5.5.0**, Android yapı numarası **15**’tür. İlk otomatik sürümleme tabanı **5.2.0 (7)** idi.
+Tek sürüm kaynağı `version.properties` dosyasıdır. Android paketinin ve Ayarlar → Uygulama Hakkında ekranının sürümleri aynı kaynaktan gelir. Mevcut sürüm **5.5.1**, Android yapı numarası **16**’tür. İlk otomatik sürümleme tabanı **5.2.0 (7)** idi.
 
 Normal APK/AAB oluşturma komutları sürümü otomatik hazırlar:
 

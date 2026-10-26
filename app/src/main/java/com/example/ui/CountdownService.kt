@@ -24,50 +24,47 @@ class CountdownService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var currentJob: Job? = null
     private var refreshJob: Job? = null
+    private var foregroundReady = false
 
     override fun onCreate() {
         super.onCreate()
-        BackgroundServices.armWatchdog(this)
-        PrayerAlertExpiry.clearStaleAlerts(this)
-        createNotificationChannel()
-        val selectedTheme = selectedTheme()
-        val palette = selectedTheme.spec.colors(selectedTheme.spec.prefersDark)
-        val cachedNext = recalculateNextPrayer(com.example.data.PrayerTimeCache.read(this))
-        val savedTarget = getSharedPreferences("countdown_service_prefs", MODE_PRIVATE)
-            .getLong("NEXT_PRAYER_TIME_MILLIS", 0L)
-        val initialTarget = cachedNext?.timeMillis ?: savedTarget.takeIf { it > System.currentTimeMillis() }
-        val initialPublic = publicCountdownNotification(
-            title = getString(R.string.app_name),
-            targetTimeMillis = initialTarget,
-            contentIntent = null,
-            accentColor = palette.primary.toArgb()
-        )
-        val initial = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(CountdownStatusIcon.create(this,
-                (initialTarget ?: System.currentTimeMillis()) - System.currentTimeMillis()))
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText("Vakitler güncelleniyor")
-            .setOngoing(true)
-            .setAutoCancel(false)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setGroup(COUNTDOWN_GROUP)
-            .setGroupSummary(false)
-            .setSortKey("00_countdown")
-            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPublicVersion(initialPublic)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setColor(palette.primary.toArgb())
-            .build().apply {
-                flags = flags or android.app.Notification.FLAG_NO_CLEAR
+        // Promote before cache/database/theme work: Android gives foreground
+        // service starts only a short window to publish their notification.
+        try {
+            createNotificationChannel()
+            val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val initial = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText("Vakitler güncelleniyor")
+                .setContentIntent(open)
+                .setDeleteIntent(countdownDeleteIntent())
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setGroup(COUNTDOWN_GROUP)
+                .setGroupSummary(false)
+                .setSortKey("00_countdown")
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                .build().apply { flags = flags or android.app.Notification.FLAG_NO_CLEAR }
+            initial.publicVersion = initial.clone()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(1001, initial, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(1001, initial)
             }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1001, initial, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(1001, initial)
+            foregroundReady = true
+            BackgroundServices.onCountdownStarted(this)
+        } catch (error: Exception) {
+            android.util.Log.w("CountdownService", "Foreground start unavailable", error)
+            BackgroundServices.armWatchdog(this)
+            stopSelf()
         }
     }
 
@@ -103,7 +100,16 @@ class CountdownService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!foregroundReady) return START_NOT_STICKY
         BackgroundServices.armWatchdog(this)
+        // A normal step service is permitted once this process is foreground.
+        // Also restore it when Android recreates the sticky service without an Activity.
+        try {
+            com.example.steps.StepCounterService.startIfEnabled(this)
+        } catch (error: Exception) {
+            android.util.Log.w("CountdownService", "Step tracking restore deferred", error)
+        }
+        runCatching { PrayerAlertExpiry.clearStaleAlerts(this) }
         val prefs = getSharedPreferences("countdown_service_prefs", Context.MODE_PRIVATE)
 
         var locationName = intent?.getStringExtra("LOCATION_NAME")
@@ -177,7 +183,9 @@ class CountdownService : Service() {
             var activeCurrentIndex = currentIndex
             var lastBgLocCheckTime = System.currentTimeMillis()
 
-            while (isActive) {
+            runResilientCountdownUpdates(onFailure = { error ->
+                android.util.Log.w("CountdownService", "Countdown update will retry", error)
+            }) {
                 val now = System.currentTimeMillis()
                 var diff = activeNextTimeMillis - now
                 val updatedPrayers = com.example.data.PrayerTimeCache.read(this@CountdownService)
@@ -293,15 +301,7 @@ class CountdownService : Service() {
                     }
                 }
 
-                val dismissIntent = Intent(this@CountdownService, PrayerNotificationReceiver::class.java).apply {
-                    action = "com.example.ACTION_NOTIFICATION_DISMISSED"
-                }
-                val deletePendingIntent = PendingIntent.getBroadcast(
-                    this@CountdownService,
-                    0,
-                    dismissIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
+                val deletePendingIntent = countdownDeleteIntent()
 
                 val notification = NotificationCompat.Builder(this@CountdownService, CHANNEL_ID)
                     .setSmallIcon(CountdownStatusIcon.create(this@CountdownService, diff))
@@ -341,12 +341,16 @@ class CountdownService : Service() {
 
                 notification.flags = notification.flags or android.app.Notification.FLAG_NO_CLEAR or android.app.Notification.FLAG_ONGOING_EVENT
 
-                val manager = getSystemService(NotificationManager::class.java)
-                manager?.notify(1001, notification)
+                // Serialize publication with lifecycle cancellation on the main thread.
+                withContext(Dispatchers.Main.immediate) {
+                    ensureActive()
+                    getSystemService(NotificationManager::class.java)?.notify(1001, notification)
+                    BackgroundServices.onCountdownHeartbeat(this@CountdownService)
+                }
 
                 // SystemUI renders Chronometer every second without waking this service every second.
                 val untilPrayer = if (diff > 0L) diff + 50L else 30_000L
-                delay(minOf(30_000L, untilPrayer, CountdownStatusIcon.millisUntilNextMinuteChange(diff)))
+                minOf(30_000L, untilPrayer, CountdownStatusIcon.millisUntilNextMinuteChange(diff))
             }
         }
 
@@ -361,12 +365,19 @@ class CountdownService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        BackgroundServices.onCountdownStopped()
         scheduleServiceRestart()
     }
 
     private fun scheduleServiceRestart() {
         BackgroundServices.scheduleRecovery(applicationContext)
     }
+
+    private fun countdownDeleteIntent(): PendingIntent = PendingIntent.getBroadcast(
+        this, 0, Intent(this, PrayerNotificationReceiver::class.java)
+            .setAction(PrayerNotificationReceiver.ACTION_COUNTDOWN_DISMISSED),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
 
     private fun publicCountdownNotification(
         title: String,
@@ -529,6 +540,8 @@ class CountdownService : Service() {
                 getSharedPreferences("countdown_service_prefs", MODE_PRIVATE).edit()
                     .putString("LOCATION_NAME", city).apply()
                 PrayerAlarmScheduler.scheduleAllPrayerAlarms(applicationContext)
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
                 android.util.Log.w("CountdownService", "Prayer times refresh unavailable", error)
             }

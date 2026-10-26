@@ -50,6 +50,24 @@ class PrayerServiceTest {
         } finally { controller.destroy() }
     }
 
+    @Test fun stickyRecreationRestoresEnabledStepsAfterForegroundPromotion() {
+        val app = context as android.app.Application
+        shadowOf(app).grantPermissions(android.Manifest.permission.ACTIVITY_RECOGNITION)
+        val sensors = shadowOf(context.getSystemService(android.hardware.SensorManager::class.java))
+        sensors.addSensor(org.robolectric.shadows.ShadowSensor.newInstance(android.hardware.Sensor.TYPE_STEP_COUNTER))
+        com.example.steps.StepCounterService.settings(context).edit().putBoolean("enabled", true).commit()
+        val controller = Robolectric.buildService(CountdownService::class.java).create()
+        try {
+            assertEquals(1001, shadowOf(controller.get()).lastForegroundNotificationId)
+            assertEquals(android.app.Service.START_STICKY, controller.get().onStartCommand(null, 0, 1))
+            val starts = generateSequence { shadowOf(app).nextStartedService }.toList()
+            assertTrue(starts.any { it.component?.className == com.example.steps.StepCounterService::class.java.name })
+        } finally {
+            com.example.steps.StepCounterService.settings(context).edit().putBoolean("enabled", false).commit()
+            controller.destroy()
+        }
+    }
+
     @Test fun countdownAlwaysFormatsHoursMinutesAndLiveSeconds() {
         assertEquals("02:03:05", CountdownService.formatRemaining(7_385_000L))
         assertEquals("00:00:01", CountdownService.formatRemaining(1L))

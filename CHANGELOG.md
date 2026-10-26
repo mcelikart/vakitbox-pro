@@ -1,5 +1,13 @@
 # Sürüm notları
 
+## 5.5.1 — 27 Ekim 2026
+
+- Arka planda sayaç yenilenirken oluşan geçici hataların uygulamayı kapatması önlendi; son bildirim korunarak artan bekleme süresiyle tekrar denenir.
+- Sayaç servisi, veri ve tema işlemlerinden önce ön plana alınır. Android servisi yeniden oluşturduğunda etkin adımsayar da geri başlatılır.
+- Birbirini erteleyebilen kurtarma alarmları kaldırıldı. İşlem sonlandırıldığında da kalan, sistemde saklanan bakım görevi ve saat değişiminden etkilenmeyen ayrı kısa toparlanma isteği eklendi.
+- Pil kısıtlaması, otomatik başlatma, kesin alarm ve geri sayım kanalı kontrolleri yenilendi; sistem ayarlarından dönüşte durum güncellenir. Eksik izinler için kapatılabilir bir defalık rehber eklendi.
+- Android kullanıcı tarafından Zorla durdurulduğunda bu tercih korunur; uygulama yeniden açıldığında çalışma devam eder.
+
 ## 5.5.0 — 25 Ekim 2026
 
 - Uygulamanın görünen adı Vakit Pro olarak yenilendi; mevcut ikon, kurulum kimliği ve kullanıcı verileri korundu.

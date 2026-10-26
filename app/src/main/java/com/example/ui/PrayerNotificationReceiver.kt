@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,7 +13,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.MainActivity
 import com.example.R
-import com.example.steps.StepCounterService
 
 class PrayerNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -23,16 +23,17 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_USER_UNLOCKED, Intent.ACTION_USER_PRESENT,
             Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
-            "android.intent.action.QUICKBOOT_POWERON", ACTION_RESTART -> {
-                PrayerAlarmScheduler.scheduleAllPrayerAlarms(context)
+            "android.intent.action.QUICKBOOT_POWERON" -> {
+                if (!BackgroundServices.automaticRecoveryAllowed(context)) return
+                runCatching { PrayerAlarmScheduler.scheduleAllPrayerAlarms(context) }
+                    .onFailure { android.util.Log.w("PrayerNotification", "Schedule refresh deferred", it) }
                 BackgroundServices.startCountdown(context)
-                StepCounterService.startIfEnabled(context)
-                BackgroundServices.armWatchdog(context)
+            }
+            ACTION_RESTART, AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
+                BackgroundServices.performMaintenance(context)
             }
             ACTION_COUNTDOWN_DISMISSED -> {
-                BackgroundServices.startCountdown(context)
-                StepCounterService.startIfEnabled(context)
-                BackgroundServices.armWatchdog(context)
+                BackgroundServices.startCountdown(context, userInitiated = true)
             }
             // Old installations may still have a pending auto-dismiss alarm. Ignore it.
         }

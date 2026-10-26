@@ -94,8 +94,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        com.example.steps.StepCounterService.startIfEnabled(this)
-        com.example.ui.BackgroundServices.startCountdown(this)
+        com.example.ui.BackgroundServices.startCountdown(this, userInitiated = true)
         viewModel.onAppResumed()
         com.example.alarm.SunriseAlarmScheduler.refresh(this)
         com.example.alarm.SunriseAlarmReceiver.armRefresh(this)
@@ -195,6 +194,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         MainApp(viewModel, stepOpenRequest, alarmOpenRequest)
                     }
+                    com.example.ui.BackgroundProtectionPrompt(canPrompt = hasAnyLocationPermission)
                 }
             }
         }
